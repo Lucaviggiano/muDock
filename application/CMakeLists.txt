@@ -20,7 +20,7 @@ add_executable("${CMAKE_PROJECT_NAME}" ${header_files} ${source_files})
 target_include_directories("${CMAKE_PROJECT_NAME}" PRIVATE "${header_path}")
 set_target_properties(
   "${CMAKE_PROJECT_NAME}"
-  PROPERTIES CXX_STANDARD 20
+  PROPERTIES CXX_STANDARD 20>
              CXX_STANDARD_REQUIRED ON
              CXX_EXTENSIONS OFF
              POSITION_INDEPENDENT_CODE FALSE)
@@ -102,7 +102,7 @@ set_target_properties(
   PROPERTIES CXX_STANDARD 20
              CXX_STANDARD_REQUIRED ON
              CXX_EXTENSIONS OFF)
-target_link_libraries(converter PRIVATE libmudock Boost::program_options)
+target_link_libraries(converter PRIVATE libmudock)
 target_compile_options(converter PRIVATE -fno-plt)
 target_link_options(converter PRIVATE -Wl,-z,now)
 
