@@ -24,6 +24,8 @@ set_target_properties(
              CXX_STANDARD_REQUIRED ON
              CXX_EXTENSIONS OFF
              POSITION_INDEPENDENT_CODE FALSE)
+target_compile_options("${CMAKE_PROJECT_NAME}" PRIVATE -fno-plt)
+target_link_options("${CMAKE_PROJECT_NAME}" PRIVATE -Wl,-z,now)
 
 # add the dependencies
 if(MUDOCK_ENABLE_SYCL)
@@ -81,20 +83,38 @@ if(MUDOCK_ENABLE_TEST)
                CXX_STANDARD_REQUIRED ON
                CXX_EXTENSIONS OFF)
   target_link_libraries(test_grid PRIVATE libmudock Boost::program_options)
+
+  add_executable(test_score "${CMAKE_CURRENT_SOURCE_DIR}/src/tests/score.cpp")
+  target_include_directories(test_score
+                             PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src/")
+  set_target_properties(
+    test_score
+    PROPERTIES CXX_STANDARD 20
+               CXX_STANDARD_REQUIRED ON
+               CXX_EXTENSIONS OFF)
+  target_link_libraries(test_score PRIVATE libmudock Boost::program_options)
+
 endif()
 
-# ##############################################################################
-# ### Declare the install step
-# ##############################################################################
 add_executable(converter "${CMAKE_CURRENT_SOURCE_DIR}/src/converter.cpp")
 set_target_properties(
   converter
   PROPERTIES CXX_STANDARD 20
              CXX_STANDARD_REQUIRED ON
              CXX_EXTENSIONS OFF)
-target_link_libraries(converter PRIVATE libmudock Boost::program_options)
+target_link_libraries(converter PRIVATE libmudock)
 target_compile_options(converter PRIVATE -fno-plt)
 target_link_options(converter PRIVATE -Wl,-z,now)
+
+add_executable(ob_example "${CMAKE_CURRENT_SOURCE_DIR}/src/ob_typing.cpp")
+set_target_properties(
+  ob_example
+  PROPERTIES CXX_STANDARD 20
+             CXX_STANDARD_REQUIRED ON
+             CXX_EXTENSIONS OFF)
+target_link_libraries(ob_example PRIVATE libmudock Boost::program_options)
+target_compile_options(ob_example PRIVATE -fno-plt)
+target_link_options(ob_example PRIVATE -Wl,-z,now)
 
 # ##############################################################################
 # ### Declare the install step
