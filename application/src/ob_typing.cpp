@@ -7,10 +7,32 @@
 #include <openbabel/elements.h>
 #include <openbabel/mol.h>
 #include <openbabel/obconversion.h>
+#include <openbabel/parsmart.h>
+
 using namespace OpenBabel;
 using namespace std;
 
-int main(int argc, char** argv) {
+bool isHydrophobicAtom(OBMol &mol, OBAtom *atom) {
+  // Define a simple hydrophobic SMARTS: non-polar carbon, sp3
+  OBSmartsPattern smarts;
+  smarts.Init(
+      "[$([C;H0,H1,H2]);!$(C=[O,N,S]);!$(C#N);!$(C(F)(F)F);!$(C(Cl)(Cl)Cl);!$(C(Br)(Br)Br);!$(C(I)(I)I)]"); // aliphatic carbon not bonded to N/O/S
+
+  if (!smarts.Match(mol))
+    return false;
+
+  // Check if the atom is part of any match
+  for (const auto &match: smarts.GetMapList()) {
+    for (uint idx: match) {
+      if (idx == atom->GetIdx())
+        return true;
+    }
+  }
+
+  return false;
+}
+
+int main(int argc, char **argv) {
   if (argc != 2) {
     cerr << "Usage: " << argv[0] << " <input.pdb>" << endl;
     return 1;
@@ -35,7 +57,7 @@ int main(int argc, char** argv) {
 
     // Get residue info if available
     string resInfo     = "N/A";
-    OBResidue* residue = atom->GetResidue();
+    OBResidue *residue = atom->GetResidue();
     if (residue) {
       resInfo = residue->GetName() + " " + to_string(residue->GetNum());
     }
@@ -43,7 +65,7 @@ int main(int argc, char** argv) {
     // Print atom info
     cout << left << setw(6) << idx << setw(5) << atomType << setw(5) << elSymbol << fixed << setprecision(2)
          << setw(8) << vdwRadius << setw(10) << (isDonor ? "Yes" : "No") << setw(10)
-         << (isAcceptor ? "Yes" : "No") << setw(15) << resInfo << endl;
+         << (isAcceptor ? "Yes" : "No") << setw(15) << resInfo << isHydrophobicAtom(*ob_mol, atom) << endl;
   }
 
   return 0;
