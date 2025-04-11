@@ -84,7 +84,8 @@ if(MUDOCK_ENABLE_TEST)
                CXX_EXTENSIONS OFF)
   target_link_libraries(test_grid PRIVATE libmudock Boost::program_options)
 
-  add_executable(test_score "${CMAKE_CURRENT_SOURCE_DIR}/src/tests/score.cpp")
+  add_executable(test_score
+                 "${CMAKE_CURRENT_SOURCE_DIR}/src/tests/score_test.cpp")
   target_include_directories(test_score
                              PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src/")
   set_target_properties(
@@ -93,7 +94,6 @@ if(MUDOCK_ENABLE_TEST)
                CXX_STANDARD_REQUIRED ON
                CXX_EXTENSIONS OFF)
   target_link_libraries(test_score PRIVATE libmudock Boost::program_options)
-
 endif()
 
 add_executable(converter "${CMAKE_CURRENT_SOURCE_DIR}/src/converter.cpp")
