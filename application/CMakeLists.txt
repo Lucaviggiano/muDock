@@ -102,7 +102,7 @@ set_target_properties(
   PROPERTIES CXX_STANDARD 20
              CXX_STANDARD_REQUIRED ON
              CXX_EXTENSIONS OFF)
-target_link_libraries(converter PRIVATE libmudock)
+target_link_libraries(converter PRIVATE libmudock Boost::program_options)
 target_compile_options(converter PRIVATE -fno-plt)
 target_link_options(converter PRIVATE -Wl,-z,now)
 
@@ -115,6 +115,16 @@ set_target_properties(
 target_link_libraries(ob_example PRIVATE libmudock Boost::program_options)
 target_compile_options(ob_example PRIVATE -fno-plt)
 target_link_options(ob_example PRIVATE -Wl,-z,now)
+
+add_executable(vina "${CMAKE_CURRENT_SOURCE_DIR}/src/main_vina.cpp")
+set_target_properties(
+  vina
+  PROPERTIES CXX_STANDARD 20
+             CXX_STANDARD_REQUIRED ON
+             CXX_EXTENSIONS OFF)
+target_link_libraries(vina PRIVATE libmudock Boost::program_options)
+target_compile_options(vina PRIVATE -fno-plt)
+target_link_options(vina PRIVATE -Wl,-z,now)
 
 # ##############################################################################
 # ### Declare the install step
