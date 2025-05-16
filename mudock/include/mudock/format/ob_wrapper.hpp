@@ -22,6 +22,7 @@
 #include <openbabel/generic.h>
 #include <openbabel/mol.h>
 #include <openbabel/obconversion.h>
+#include <openbabel/parsmart.h>
 #include <sys/types.h>
 
 namespace mudock {
@@ -71,6 +72,8 @@ namespace mudock {
     { f(bond) } -> std::same_as<bool>;
   };
 
+  bool isHydrophobicAtom(const ob_mol_wrapper &mol, const OpenBabel::OBAtom *atom);
+
   template<auto rotor_check, class molecule_type>
     requires is_molecule<molecule_type> && is_rotate_check<decltype(rotor_check)>
   void convert(molecule_type&& dest, const ob_mol_wrapper& source) {
@@ -105,6 +108,11 @@ namespace mudock {
       dest.y(mudock_atom_index)           = static_cast<fp_type>(atom->GetY());
       dest.z(mudock_atom_index)           = static_cast<fp_type>(atom->GetZ());
       dest.charge(mudock_atom_index)      = atom->GetPartialCharge();
+      dest.is_hbond_donor(mudock_atom_index)    = atom->IsHbondDonor();
+      dest.is_hbond_acceptor(mudock_atom_index) = atom->IsHbondAcceptor();
+      dest.is_hydrophobic(mudock_atom_index)    = isHydrophobicAtom(source, atom);
+      dest.vdw_radius(mudock_atom_index)        = OpenBabel::OBElements::GetVdwRad(atom->GetAtomicNum());
+
       index_translator.emplace(atom_id, mudock_atom_index);
       ++mudock_atom_index;
       max_atom_index = std::max(max_atom_index, atom_id);
@@ -172,5 +180,6 @@ namespace mudock {
     const auto ob_mol = format_parser<format>(description);
     convert<rotate_check>(molecule, ob_mol);
   }
+  
 
 } // namespace mudock

@@ -150,4 +150,6 @@ namespace mudock {
   }
   element parse_element_symbol(const std::string_view symbol);
 
+  element parse_element_symbol_by_atomic_number(const size_t atomic_number);
+
 } // namespace mudock

@@ -18,6 +18,16 @@ namespace mudock {
       throw std::runtime_error("Missing element");
   }
 
+  element parse_element_symbol_by_atomic_number(const size_t atomic_number) {
+    size_t idx = atomic_number - 1;
+
+    if (idx >= ELEMENT_DICTIONARY.size())
+      throw std::runtime_error("Invalid atomic number");
+
+    return ELEMENT_DICTIONARY[idx].value;
+  }
+
+
   const std::array<element_description, 119> ELEMENT_DICTIONARY = {{
       {element::H, "H", "Hydrogen", 1, 0},
       {element::He, "He", "Helium", 2, 0},

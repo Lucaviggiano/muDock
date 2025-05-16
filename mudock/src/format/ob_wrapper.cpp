@@ -12,8 +12,12 @@
 #include <openbabel/obiter.h>
 #include <openbabel/obutil.h>
 #include <openbabel/plugin.h>
+#include <openbabel/parsmart.h>
 #include <stdexcept>
 #include <string_view>
+
+#include <queue>
+#include <vector>
 
 namespace mudock {
   ob_mol_wrapper parser(const std::filesystem::path file_path) {
@@ -334,4 +338,23 @@ namespace mudock {
     }
   }
 
+  bool isHydrophobicAtom(const ob_mol_wrapper &mol, const OpenBabel::OBAtom *atom) {
+    // Define a simple hydrophobic SMARTS: non-polar carbon, sp3
+    OpenBabel::OBSmartsPattern smarts;
+    smarts.Init(
+        "[c,s,F,Cl,Br,I,S&H0&v2,$([D3,D4;#6])&!$([#6]~[#7,#8,#9])&!$([#6X4H0]);+0]"); // aliphatic carbon not bonded to N/O/S
+  
+    if (!smarts.Match(*mol.get()))
+      return false;
+  
+    // Check if the atom is part of any match
+    for (const auto &match: smarts.GetMapList()) {
+      for (uint idx: match) {
+        if (idx == atom->GetIdx())
+          return true;
+      }
+    }
+  
+    return false;
+  }
 } // namespace mudock

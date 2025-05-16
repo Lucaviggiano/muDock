@@ -45,6 +45,10 @@ namespace mudock {
     atoms_array_type<fp_type> atom_epsij_hb;
     atoms_array_type<fp_type> atom_charge;
     atoms_array_type<int> atom_num_hbond;
+    atoms_array_type<int> atom_is_hbond_donor;
+    atoms_array_type<int> atom_is_hbond_acceptor;
+    atoms_array_type<int> atom_is_hydrophobic;
+    atoms_array_type<fp_type> atom_vdw_radius;
     int atoms_size = int{0};
 
     // the intra-molecular connections
@@ -90,6 +94,11 @@ namespace mudock {
     [[nodiscard]] inline auto get_charge() { return make_span(atom_charge, atoms_size); }
     [[nodiscard]] inline auto get_num_hbond() { return make_span(atom_num_hbond, atoms_size); }
 
+    [[nodiscard]] inline auto get_is_hbond_donor() { return make_span(atom_is_hbond_donor, atoms_size);}
+    [[nodiscard]] inline auto get_is_hbond_acceptor() { return make_span(atom_is_hbond_acceptor, atoms_size);}
+    [[nodiscard]] inline auto get_is_hydrophobic() { return make_span(atom_is_hydrophobic, atoms_size);}
+    [[nodiscard]] inline auto get_vdw_radius() { return make_span(atom_vdw_radius, atoms_size);}
+
     // utility functions to get the span of the whole molecule (read only)
     [[nodiscard]] inline auto get_element() const { return make_span(atom_elements, atoms_size); }
     [[nodiscard]] inline auto get_autodock_type() const { return make_span(atom_autodock_type, atoms_size); }
@@ -106,6 +115,11 @@ namespace mudock {
     [[nodiscard]] inline auto get_charge() const { return make_span(atom_charge, atoms_size); }
     [[nodiscard]] inline auto get_num_hbond() const { return make_span(atom_num_hbond, atoms_size); }
 
+    [[nodiscard]] inline auto get_is_hbond_donor() const { return make_span(atom_is_hbond_donor, atoms_size);}
+    [[nodiscard]] inline auto get_is_hbond_acceptor() const { return make_span(atom_is_hbond_acceptor, atoms_size);}
+    [[nodiscard]] inline auto get_is_hydrophobic() const { return make_span(atom_is_hydrophobic, atoms_size);}
+    [[nodiscard]] inline auto get_vdw_radius() const { return make_span(atom_vdw_radius, atoms_size);}
+    
     // utility functions to get the ref to an atom element (read + write)
     [[nodiscard]] inline auto& elements(const int index) { return atom_elements[index]; }
     [[nodiscard]] inline auto& autodock_type(const int index) { return atom_autodock_type[index]; }
@@ -121,6 +135,11 @@ namespace mudock {
     [[nodiscard]] inline auto& epsij_hb(const int index) { return atom_epsij_hb[index]; }
     [[nodiscard]] inline auto& charge(const int index) { return atom_charge[index]; }
     [[nodiscard]] inline auto& num_hbond(const int index) { return atom_num_hbond[index]; }
+
+    [[nodiscard]] inline auto& is_hbond_donor(const int index) { return atom_is_hbond_donor[index];}
+    [[nodiscard]] inline auto& is_hbond_acceptor(const int index) { return atom_is_hbond_acceptor[index];}
+    [[nodiscard]] inline auto& is_hydrophobic(const int index) { return atom_is_hydrophobic[index];}
+    [[nodiscard]] inline auto& vdw_radius(const int index) { return atom_vdw_radius[index];}
 
     // utility functions to get the span of the whole molecule (read only)
     [[nodiscard]] inline const auto& elements(const int index) const { return atom_elements[index]; }
@@ -139,6 +158,12 @@ namespace mudock {
     [[nodiscard]] inline const auto& epsij_hb(const int index) const { return atom_epsij_hb[index]; }
     [[nodiscard]] inline auto& charge(const int index) const { return atom_charge[index]; }
     [[nodiscard]] inline const auto& num_hbond(const int index) const { return atom_num_hbond[index]; }
+
+    [[nodiscard]] inline const auto& is_hbond_donor(const int index) const { return atom_is_hbond_donor[index];}
+    [[nodiscard]] inline const auto& is_hbond_acceptor(const int index) const { return atom_is_hbond_acceptor[index];}
+    [[nodiscard]] inline const auto& is_hydrophobic(const int index) const { return atom_is_hydrophobic[index];}
+    [[nodiscard]] inline const auto& vdw_radius(const int index) const { return atom_vdw_radius[index];}
+
   };
 
   //===------------------------------------------------------------------------------------------------------
@@ -146,7 +171,13 @@ namespace mudock {
   //===------------------------------------------------------------------------------------------------------
 
   using dynamic_molecule = molecule<dynamic_containers>;
-  using static_molecule  = molecule<static_containers>;
+  struct static_molecule : public molecule<static_containers> {
+    atoms_array_type<std::pair<int, int>> interacting_pairs;
+    atoms_array_type<fp_type> intra_dst_mtx;
+    atoms_array_type<fp_type> intra_lig_atoms_vdw_sum;
+    atoms_array_type<int> intra_lig_atom_is_hbond;
+    atoms_array_type<int> intra_lig_atom_is_hydrophobic;
+};
 
   // this is the concept that defines a molecule, which is any molecule for which we have defined a
   // special container and we are agnostic about it.
@@ -175,6 +206,10 @@ namespace mudock {
     mudock::resize(atom_epsij_hb, n_atoms);
     mudock::resize(atom_charge, n_atoms);
     mudock::resize(atom_num_hbond, n_atoms);
+    mudock::resize(atom_is_hbond_donor, n_atoms);
+    mudock::resize(atom_is_hbond_acceptor, n_atoms);
+    mudock::resize(atom_is_hydrophobic, n_atoms);
+    mudock::resize(atom_vdw_radius, n_atoms);
     mudock::resize(bond_descriptions, n_bonds);
     atoms_size = n_atoms;
     bonds_size = n_bonds;
@@ -196,6 +231,10 @@ namespace mudock {
     mudock::remove_atom(atom_Rij_hb, index);
     mudock::remove_atom(atom_epsij_hb, index);
     mudock::remove_atom(atom_charge, index);
+    mudock::remove_atom(atom_is_hbond_donor, index);
+    mudock::remove_atom(atom_is_hbond_acceptor, index);
+    mudock::remove_atom(atom_is_hydrophobic, index);
+    mudock::remove_atom(atom_vdw_radius, index);
     mudock::remove_atom(atom_num_hbond, index);
     atoms_size--;
 
