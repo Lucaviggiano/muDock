@@ -16,6 +16,7 @@
 #include <mudock/format/ob_wrapper.hpp>
 #include <mudock/type_alias.hpp>
 #include <mudock/chem/elements.hpp>
+#include <mudock/molecule/containers.hpp>
 
 #include <openbabel/atom.h>
 #include <openbabel/elements.h>
@@ -299,94 +300,6 @@ namespace mudock {
 using namespace OpenBabel;
 using namespace std;
 
-// Funzione per trovare la distanza in numero di bond tra due atomi
-int shortest_bond_path(OBMol& mol, int startIdx, int endIdx) {
-    std::vector<bool> visited(mol.NumAtoms() + 1, false);
-    std::queue<std::pair<OBAtom*, int>> q;
-
-    OBAtom* startAtom = mol.GetAtom(startIdx);
-    q.push({startAtom, 0});
-    visited[startIdx] = true;
-
-    while (!q.empty()) {
-        auto [currentAtom, depth] = q.front();
-        q.pop();
-
-        if (currentAtom->GetIdx() == endIdx)
-            return depth;
-
-        OBBondIterator bondIt;
-        OBBond* bond = currentAtom->BeginBond(bondIt);
-        while (bond) {
-            OBAtom* neighbor = bond->GetNbrAtom(currentAtom);
-            int neighborIdx = neighbor->GetIdx();
-
-            if (!visited[neighborIdx]) {
-                visited[neighborIdx] = true;
-                q.push({neighbor, depth + 1});
-            }
-
-            bond = currentAtom->NextBond(bondIt);
-        }
-    }
-
-    return -1; // Not connected
-}
-
-std::vector<std::pair<int, int>> get_distant_atom_pairs(OBMol& mol, int minBondDistance = 4) {
-    std::vector<std::pair<int, int>> distant_pairs;
-    int numAtoms = mol.NumAtoms();
-
-    for (int i = 1; i <= numAtoms; ++i) {
-        for (int j = i + 1; j <= numAtoms; ++j) {
-            int bond_distance = shortest_bond_path(mol, i, j);
-            if (bond_distance >= minBondDistance) {
-                printf("[%d, %d], ", i - 1, j - 1);
-                distant_pairs.emplace_back(i - 1, j - 1); /// TODO: riguarda questo
-            }
-        }
-    }
-
-    printf("\n----------------------------------------------------------------\n");
-
-    return distant_pairs;
-}
-
-inline auto same_fragment(const std::span<const int>& mask, const int& atom_id1, const int& atom_id2) {
-    return mask[atom_id1] == mask[atom_id2] || (mask[atom_id1] == 0 && mask[atom_id2] == 2) ||
-           (mask[atom_id2] == 0 && mask[atom_id1] == 2) || (mask[atom_id1] == 1 && mask[atom_id2] == 3) ||
-           (mask[atom_id2] == 1 && mask[atom_id1] == 3);
-}
-
-/*
-Opendock:
-    [0, 1, 2]
-    [3]
-    [4]
-    [5, 6, 7, 8, 9, 10, 11]
-    [12, 13, 14, 15, 16, 17, 18, 19, 20, 21]
-    [22]
-    [23, 24, 25]
-    [26]
-    [27]
-    [28, 29, 30, 31, 32, 33, 34]
-    [35, 36, 37, 38, 39, 40]
-    [41, 42, 43]
-
-Mudock:
-    Fragment 10: 0 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 
-    Fragment 9: 0 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39 40 41 42 43 
-    Fragment 8: 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 
-    Fragment 7: 27 28 29 30 31 32 33 34 35 36 37 38 39 40 41 42 43 
-    Fragment 6: 33 35 36 37 38 39 40 41 42 43 
-    Fragment 5: 37 41 42 43 
-    Fragment 4: 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 
-    Fragment 3: 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39 40 41 42 43 
-    Fragment 2: 9 12 13 14 15 16 17 18 19 20 21 
-    Fragment 1: 26 27 28 29 30 31 32 33 34 35 36 37 38 39 40 41 42 43 
-    Fragment 0: 23 26 27 28 29 30 31 32 33 34 35 36 37 38 39 40 41 42 43 
-*/
-
 void printAtomsInFragment(const std::unordered_map<int, std::vector<int>>& atoms_in_fragment) {
     for (const auto& [fragment_id, atom_indices] : atoms_in_fragment) {
         std::cout << "Fragment " << fragment_id << ": ";
@@ -397,97 +310,87 @@ void printAtomsInFragment(const std::unordered_map<int, std::vector<int>>& atoms
     }
 }
 
-std::vector<int> get_lig_frag_mask(const mudock::static_molecule &ligand){
-
+std::unordered_map<int, std::vector<int>> get_atoms_in_frag(
+    const mudock::static_molecule &ligand
+){
     auto graph = make_graph(ligand.get_bonds(), ligand.num_atoms());
     const auto ligand_fragments =
         std::make_unique<mudock::fragments<mudock::static_containers>>(graph,
                                                                        ligand.get_bonds(),
                                                                        ligand.num_atoms());
-    std::vector<int> frag_masks;
-    std::vector<int> frag_start_indexes;
-    std::vector<int> frag_stop_indexes;
-    size_t num_atoms = ligand.num_atoms();
-    size_t num_rotamers = ligand.num_rotamers();
-    frag_masks.resize(num_atoms * num_rotamers);
-    frag_start_indexes.resize(num_rotamers);
-    frag_stop_indexes.resize(num_rotamers);
-    for (int rot = 0; rot < num_rotamers; ++rot) {
-      std::memcpy((frag_masks.data() + num_atoms * rot),
-                  ligand_fragments.get()->get_mask(rot).data(),
-                  num_atoms * sizeof(int));
-      const auto [start_index, stop_index] = ligand_fragments.get()->get_rotatable_atoms(rot);
-      frag_start_indexes.data()[rot]       = start_index;
-      frag_stop_indexes.data()[rot]        = stop_index;
-      printf("Start idx: %d, Stop idx: %d\n", frag_start_indexes[rot], frag_stop_indexes[rot]);
-    }
 
-    return frag_masks;
-}
+    auto rigid_pieces = ligand_fragments.get()->get_rigid_pieces();
 
-std::unordered_map<int, std::vector<int>> get_atoms_in_frag(
-    const int* __restrict__ frag_masks,  
-    const size_t num_atoms,
-    const size_t num_rotamers
-){
     std::unordered_map<int, std::vector<int>> atoms_in_fragment;
-    
-    for (size_t rot = 0; rot < num_rotamers; ++rot) {
-        const auto* bitmask_rot = frag_masks + rot * num_atoms;
-        std::vector<int> atoms_rot;
-        for(size_t atom = 0; atom < num_atoms; ++atom){
-            if(bitmask_rot[atom] != 0){
-                atoms_rot.push_back(atom);
-            }
-        }
-        atoms_in_fragment[rot] = atoms_rot;
+
+    for (int i = 0; i < ligand.num_atoms(); ++i) {
+        atoms_in_fragment[rigid_pieces[i]].push_back(i);
     }
 
     printAtomsInFragment(atoms_in_fragment);
+
     return atoms_in_fragment;
+}
+
+std::set<int> get_neighbors(const OBMol& mol, int atomIdx) {
+
+    std::set<int> neighbors;
+            
+    OBAtom* oba0 = mol.GetAtom(atomIdx + 1); // OpenBabel uses 1-based indexing
+
+    OBBondIterator it0 = oba0->BeginBonds();
+    for (OBAtom* oba1 = oba0->BeginNbrAtom(it0); oba1 != nullptr; oba1 = oba0->NextNbrAtom(it0)) {
+        neighbors.insert(oba1->GetIndex());
+        OBBondIterator it1 = oba0->BeginBonds();
+        for (OBAtom* oba2 = oba1->BeginNbrAtom(it1); oba2 != nullptr; oba2 = oba1->NextNbrAtom(it1)) {
+            neighbors.insert(oba2->GetIndex());
+            OBBondIterator it2 = oba1->BeginBonds();
+            for (OBAtom* oba3 = oba2->BeginNbrAtom(it2); oba3 != nullptr; oba3 = oba2->NextNbrAtom(it2)) {
+                neighbors.insert(oba3->GetIndex());
+            }
+        }
+    }
+  
+    return neighbors;
 }
 
 
 std::vector<std::pair<int, int>> get_interactive_pairs(
-    const int* __restrict__ frag_masks, 
-    const size_t num_atoms, 
-    const size_t num_rotamers, 
-    std::vector<std::pair<int, int>> potential_interacting
+    const OBMol& mol,
+    const mudock::static_molecule &ligand
 ){
     
     std::set<std::pair<int, int>> unique_out;
 
-    std::unordered_map<int, std::vector<int>> atoms_in_fragment = get_atoms_in_frag(frag_masks, num_atoms, num_rotamers);
+    std::unordered_map<int, std::vector<int>> atoms_in_fragment = get_atoms_in_frag(ligand);
+
+    const auto num_atoms = ligand.num_atoms();
+    const auto num_rotamers = atoms_in_fragment.size();
                                                                        
     for (size_t rot1 = 0; rot1 < num_rotamers; ++rot1) {
 
-        const auto* bitmask_rot1 = frag_masks + rot1 * num_atoms;
+        /// const auto* bitmask_rot1 = frag_masks + rot1 * num_atoms;
         std::vector<int> atoms_rot1 = atoms_in_fragment[rot1];
         for(size_t i = 0; i < atoms_rot1.size(); ++i){
 
-            for(size_t rot2 = rot1 + 1; rot2 <num_rotamers; ++rot2){
+            int atom1 = atoms_rot1[i];
+            std::set<int> neighbors = get_neighbors(mol, atom1);
+            
+            for(size_t rot2 = rot1 + 1; rot2 < num_rotamers; ++rot2){
 
-                const auto* bitmask_rot2 = frag_masks + rot2 * num_atoms;
+                /// const auto* bitmask_rot2 = frag_masks + rot2 * num_atoms;
                 std::vector<int> atoms_rot2 = atoms_in_fragment[rot2];
+            
                 for(size_t j = 0; j < atoms_rot2.size(); ++j){
 
-                    int atom1 = atoms_rot1[i];
                     int atom2 = atoms_rot2[j];
+
+                    if(neighbors.find(atom2) != neighbors.end()) continue;
                     
-                    /// Assicurati che il pair non sia già presente
-                    bool found = false;
-                    for(const auto& pair : potential_interacting) {
-                        if(atom1 == pair.first && atom2 == pair.second || atom1 == pair.second && atom2 == pair.first){
-                            found = true;
-                            break;
-                        }
-                    }
-
-                    if(!found) continue;
-
-                    int mask_1 = bitmask_rot1[atom1];
-                    int mask_2 = bitmask_rot2[atom2];
-
+                    /// Opendock: if [i, j] in self.torsion_bond_index or [j, i] in self.torsion_bond_index: continue
+                    
+                    //int mask_1 = bitmask_rot1[atom1];
+                    //int mask_2 = bitmask_rot2[atom2];
                     ///if(mask_1 == 3 || mask_2 == 3 || mask_1 == 2 || mask_2 == 2) continue;
 
                     /// Order pair before adding it to the output
@@ -501,8 +404,8 @@ std::vector<std::pair<int, int>> get_interactive_pairs(
         }
     }
 
-    printf("\nOld pairs size: %ld\n", potential_interacting.size());
-    printf("New pairs size: %ld\n", unique_out.size());
+    printf("\n");
+    printf("Total interacting pairs: %ld\n", unique_out.size());
 
     std::vector<std::pair<int, int>> out(unique_out.begin(), unique_out.end());
     return out;
@@ -531,13 +434,7 @@ int main(int argc, char* argv[]) {
     auto& ligand    = *ligand_ptr;
     mudock::convert<mudock::rotate_check>(ligand, ob_mol_lig);
 
-    std::vector<std::pair<int, int>> p_interactive_pairs = get_distant_atom_pairs(*ob_mol_lig, 4);
-
-    std::vector<std::pair<int, int>> interactive_pairs = get_interactive_pairs(
-        get_lig_frag_mask(ligand).data(),
-        ligand.num_atoms(),
-        ligand.num_rotamers(), 
-        p_interactive_pairs);
+    std::vector<std::pair<int, int>> interactive_pairs = get_interactive_pairs(*ob_mol_lig, ligand);
 
     std::printf("Score: %f\n", mudock::scoring(  
                                             protein.num_atoms(),
