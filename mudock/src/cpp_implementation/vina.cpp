@@ -266,12 +266,13 @@ namespace mudock {
 
         fp_type intra_score = score_function(intra_dst_mtx, intra_rec_lig_atom_vdw_sum, intra_rec_lig_is_hydrophobic, intra_rec_lig_is_hbond);
         fp_type inter_score = score_function(dst_mtx, rec_lig_atom_vdw_sum, rec_lig_is_hydrophobic, rec_lig_is_hbond);
-        
+        fp_type score = (inter_score + intra_score) / ( 1 + NROT_COEFF * active_torsions);
+
         // printf("dst_mtx len %ld\n", dst_mtx.size());
         // printf("intra_dst_mtx len %ld\n", intra_dst_mtx.size());
-        printf("Score inter %f, Score intra %f\n", inter_score, intra_score); 
+        printf("Score inter %f, Score intra %f, Score %f\n", inter_score, intra_score, score); 
         
-        return (inter_score + intra_score) / ( 1 + NROT_COEFF * active_torsions);
+        return score;
     }
 
     std::vector<std::pair<int, int>> get_interactive_pairs(mudock::static_molecule& ligand){

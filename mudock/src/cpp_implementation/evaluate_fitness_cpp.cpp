@@ -15,6 +15,8 @@
 
 #include <mudock/cpp_implementation/vina.hpp>
 
+#define TRANSFORM 1
+
 namespace mudock {
   static constexpr auto coordinate_step = fp_type{0.2};
   static constexpr auto angle_step      = fp_type{4};
@@ -134,7 +136,7 @@ namespace mudock {
     auto altered_y        = std::make_unique<std::array<fp_type, max_static_atoms()>>();
     auto altered_z        = std::make_unique<std::array<fp_type, max_static_atoms()>>();
 
-    #if 0
+    #if TRANSFORM
 // Randomly initialize the population
 // TODO enable vectorization
 #pragma clang loop interleave(enable) unroll(enable)
@@ -159,7 +161,7 @@ namespace mudock {
       for (int element_index = 0; element_index < population_size; ++element_index) {
         auto& element = population[element_index];
 
-        #if 0
+        #if TRANSFORM
         std::memcpy(altered_x.get()->data(), ligand_x, num_atoms * sizeof(fp_type));
         std::memcpy(altered_y.get()->data(), ligand_y, num_atoms * sizeof(fp_type));
         std::memcpy(altered_z.get()->data(), ligand_z, num_atoms * sizeof(fp_type));
@@ -176,11 +178,9 @@ namespace mudock {
               frag_start_indexes,
               frag_stop_indexes);
         #endif
-
+        
+        // compute the energy of the system
         #if VINA
-
-        info("Calculating Vina energy");
-
         const auto energy = scoring(
             protein_num_atoms,
             protein_x,
@@ -191,9 +191,9 @@ namespace mudock {
             p_is_hydrophobic,
             p_vdw_radius,
             num_atoms,
-            ligand_x,
-            ligand_y, 
-            ligand_z,
+            altered_x.get()->data(),
+            altered_y.get()->data(),
+            altered_z.get()->data(),
             ligand_is_hbond_acceptor,
             ligand_is_hbond_donor,
             ligand_is_hydrophobic,
@@ -202,10 +202,7 @@ namespace mudock {
             interacting_pairs_first,
             interacting_pairs_second,
             num_interacting_pairs);
-
         #else
-
-        // compute the energy of the system
         const auto energy = calc_energy(altered_x.get()->data(),
                                         altered_y.get()->data(),
                                         altered_z.get()->data(),
@@ -236,7 +233,7 @@ namespace mudock {
       }
       LIKWID_MARKER_STOP("GA");
 
-      #if 0
+      #if TRANSFORM
 
       // Generate the new population
 #pragma clang loop interleave(enable) unroll(enable)

@@ -14,6 +14,8 @@
 
 #include <mudock/cpp_implementation/vina.hpp>
 
+#define TRANSFORM 1
+
 namespace mudock {
 
  
@@ -47,7 +49,8 @@ namespace mudock {
     // Place the molecule to the center of the target protein
     const int num_atoms = ligand.num_atoms();
     const auto x = ligand.get_x(), y = ligand.get_y(), z = ligand.get_z();
-    #ifndef VINA
+
+    #if TRANSFORM
     const auto ligand_center_of_mass = compute_center_of_mass(x, y, z);
     translate_molecule(x.data(),
                        y.data(),
@@ -197,7 +200,7 @@ namespace mudock {
                          std::end(last_population),
                          [](const auto a, const auto b) { return a.score < b.score; });
 
-    #if 0
+    #if TRANSFORM
     apply(x.data(),
           y.data(),
           z.data(),
