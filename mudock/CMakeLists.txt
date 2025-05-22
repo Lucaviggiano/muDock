@@ -31,6 +31,7 @@ list(
   "${header_path}/${header_prefix}/cpp_implementation/weed_bonds.hpp"
   "${header_path}/${header_prefix}/cpp_implementation/calc_energy_cpp.hpp"
   "${header_path}/${header_prefix}/cpp_implementation/evaluate_fitness_cpp.hpp"
+  "${header_path}/${header_prefix}/cpp_implementation/vina.hpp"
   "${header_path}/${header_prefix}/format/concept.hpp"
   "${header_path}/${header_prefix}/format/dot.hpp"
   "${header_path}/${header_prefix}/format/mol2.hpp"
@@ -94,6 +95,7 @@ list(
   "${source_path}/log.cpp"
   "${source_path}/cpp_implementation/virtual_screen.cpp"
   "${source_path}/cpp_implementation/mutate.cpp"
+  "${source_path}/cpp_implementation/vina.cpp"
   "${source_path}/cpp_implementation/evaluate_fitness_cpp.cpp")
 
 if(MUDOCK_ENABLE_GH)
@@ -240,6 +242,7 @@ set_target_properties(
              POSITION_INDEPENDENT_CODE ON)
 target_link_libraries(libmudock PUBLIC Microsoft.GSL::GSL Boost::graph
                                        ${OpenBabel3_LIBRARIES})
+target_compile_options(libmudock PUBLIC -DVINA)
 target_compile_options(
   libmudock
   PUBLIC $<$<AND:$<CONFIG:RELEASE>,$<COMPILE_LANGUAGE:CXX>>:${release_flags}>)

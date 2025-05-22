@@ -15,6 +15,9 @@ namespace mudock {
    * energy as fitness function, and geometric transformations of the molecule as genes.
    */
   class virtual_screen_cpp {
+
+    std::shared_ptr<dynamic_molecule> protein;
+
     // these are information about the target protein
     std::shared_ptr<const grid_atom_mapper> grid_atom_maps;
     std::shared_ptr<const grid_map> electro_map;
@@ -40,10 +43,7 @@ namespace mudock {
     [[nodiscard]] int get_crossover_distribution(const int& num_rotamers);
 
   public:
-    virtual_screen_cpp(std::shared_ptr<const grid_atom_mapper>& grid_atom_maps,
-                       std::shared_ptr<const grid_map>& electro_map,
-                       std::shared_ptr<const grid_map>& desolv_map,
-                       const knobs& knobs);
+    virtual_screen_cpp(std::shared_ptr<dynamic_molecule>& _protein, const knobs& knobs);
 
     void operator()(static_molecule& ligand);
   };

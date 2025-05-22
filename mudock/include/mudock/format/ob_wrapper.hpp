@@ -139,7 +139,6 @@ namespace mudock {
 
     /// Calculate interactive pairs if the molecule is a ligand
     if constexpr (std::same_as<std::remove_cvref_t<molecule_type>, static_molecule>) {
-      printf("Calc neighbors: \n");
       for (int atom_id = 0; atom_id < num_atoms; ++atom_id) {
         const std::vector<int> atom_neighbors = calc_neighbors(source, atom_id);
         assert(atom_neighbors.size() <= max_static_neighbors());

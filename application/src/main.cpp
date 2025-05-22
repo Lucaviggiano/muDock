@@ -12,6 +12,10 @@
 int main(int argc, char* argv[]) {
   const auto args = parse_command_line_arguments(argc, argv);
 
+  #ifdef VINA 
+    mudock::info("Vina mode");
+  #endif
+
   // read and parse the target protein
   mudock::info("Reading and parsing protein ", args.protein_path, " ...");
   auto protein_ptr = std::make_shared<mudock::dynamic_molecule>();
@@ -19,9 +23,21 @@ int main(int argc, char* argv[]) {
   parse(protein, args.protein_path);
 
   mudock::apply_autodock_forcefield(protein);
-  auto grid_atom_maps    = std::make_shared<const mudock::grid_atom_mapper>(generate_atom_grid_maps(protein));
-  auto electrostatic_map = std::make_shared<const mudock::grid_map>(generate_electrostatic_grid_map(protein));
-  auto desolvation_map   = std::make_shared<const mudock::grid_map>(generate_desolvation_grid_map(protein));
+
+  #if VINA
+    auto tp  = mudock::point3D{};
+    auto itp = mudock::index3D{1, 1, 1};
+    auto sv  = std::vector<mudock::grid_atom_map>{};
+    for (int i = 0; i < mudock::num_ligand_map_types(); ++i)
+      sv.emplace_back(mudock::autodock_type_from_map(static_cast<mudock::ligand_map_types>(i)), protein);
+    auto grid_atom_maps    = std::make_shared<const mudock::grid_atom_mapper>(sv);
+    auto electrostatic_map = std::make_shared<const mudock::grid_map>(protein);
+    auto desolvation_map   = std::make_shared<const mudock::grid_map>(protein);
+  #else
+    auto grid_atom_maps = std::make_shared<const grid_atom_mapper>(generate_atom_grid_maps(protein));
+    auto electrostatic_map = std::make_shared<const grid_map>(generate_electrostatic_grid_map(protein));
+    auto desolvation_map = std::make_shared<const grid_map>(generate_desolvation_grid_map(protein));
+  #endif
 
   // read  all the ligands description from the standard input and split them
   mudock::info("Reading ligands from the stdin ...");
@@ -36,7 +52,8 @@ int main(int argc, char* argv[]) {
   for (const auto& description: ligands_description) {
     try {
       auto ligand = std::make_unique<mudock::static_molecule>();
-      mudock::parse<mudock::supported_format::MOL2>(*ligand, description);
+      /// TODO: dynamicaly choose the format
+      mudock::parse<mudock::supported_format::PDBQT>(*ligand, description);
 
       mudock::apply_autodock_forcefield(*ligand);
       input_queue->enqueue(std::move(ligand));
@@ -54,9 +71,7 @@ int main(int argc, char* argv[]) {
     auto threadpool = mudock::threadpool();
     mudock::manage_cpp(args.device_confs,
                        threadpool,
-                       grid_atom_maps,
-                       electrostatic_map,
-                       desolvation_map,
+                       protein_ptr,
                        args.knobs,
                        input_queue,
                        output_queue);

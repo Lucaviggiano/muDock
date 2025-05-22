@@ -9,9 +9,7 @@ namespace mudock {
 
   void manage_cpp(const std::vector<std::string>& configurations,
                   threadpool& pool,
-                  std::shared_ptr<const grid_atom_mapper>& grid_atom_maps,
-                  std::shared_ptr<const grid_map>& electro_map,
-                  std::shared_ptr<const grid_map>& desolv_map,
+                  std::shared_ptr<dynamic_molecule>& protein,
                   const knobs knobs,
                   std::shared_ptr<safe_stack<static_molecule>>& input_molecules,
                   std::shared_ptr<safe_stack<static_molecule>>& output_molecules) {
@@ -53,9 +51,7 @@ namespace mudock {
       // add the workers that we found parsing the configuration
       for (const auto id: parse_ids(configuration)) {
         pool.add_worker<mudock::cpp_worker>(knobs,
-                                            grid_atom_maps,
-                                            electro_map,
-                                            desolv_map,
+                                            protein,
                                             input_molecules,
                                             output_molecules,
                                             id);

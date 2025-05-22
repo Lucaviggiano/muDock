@@ -2,6 +2,7 @@
 #include <cmath>
 #include <cstring>
 #include <memory>
+#include <mudock/log.hpp>
 #include <mudock/chem/ligand_maps.hpp>
 #include <mudock/cpp_implementation/calc_energy_cpp.hpp>
 #include <mudock/cpp_implementation/chromosome.hpp>
@@ -11,6 +12,8 @@
 #include <mudock/molecule/constraints.hpp>
 #include <mudock/utils.hpp>
 #include <random>
+
+#include <mudock/cpp_implementation/vina.hpp>
 
 namespace mudock {
   static constexpr auto coordinate_step = fp_type{0.2};
@@ -74,6 +77,16 @@ namespace mudock {
                         const fp_type* __restrict__ ligand_vol,
                         const fp_type* __restrict__ ligand_solpar,
                         const fp_type* __restrict__ ligand_charge,
+
+                        /// Vina ligand data
+                        const int* __restrict__ ligand_is_hbond_acceptor,
+                        const int* __restrict__ ligand_is_hbond_donor,
+                        const int* __restrict__ ligand_is_hydrophobic,
+                        const fp_type* __restrict__ ligand_vdw_radius,
+                        const int* __restrict__ interacting_pairs_first,
+                        const int* __restrict__ interacting_pairs_second,
+                        const size_t num_interacting_pairs,
+
                         const int* __restrict__ map_ligand_offsets,
                         const int num_atoms,
                         const int num_rotamers,
@@ -89,6 +102,17 @@ namespace mudock {
                         const fp_type* __restrict__ grid_maps,
                         const fp_type* __restrict__ electro_map,
                         const fp_type* __restrict__ desolv_map,
+
+                        /// Vina protein data
+                        const fp_type* __restrict__ protein_x,
+                        const fp_type* __restrict__ protein_y,
+                        const fp_type* __restrict__ protein_z,
+                        const int* __restrict__ p_is_hbond_acceptor,
+                        const int* __restrict__ p_is_hbond_donor,
+                        const int* __restrict__ p_is_hydrophobic,
+                        const fp_type* __restrict__ p_vdw_radius,
+                        const int protein_num_atoms,
+
                         const int num_generations,
                         const int population_size,
                         const int tournament_length,
@@ -110,6 +134,7 @@ namespace mudock {
     auto altered_y        = std::make_unique<std::array<fp_type, max_static_atoms()>>();
     auto altered_z        = std::make_unique<std::array<fp_type, max_static_atoms()>>();
 
+    #if 0
 // Randomly initialize the population
 // TODO enable vectorization
 #pragma clang loop interleave(enable) unroll(enable)
@@ -125,6 +150,8 @@ namespace mudock {
       }
     }
 
+    #endif
+
     for (int generation = 0; generation < num_generations; ++generation) {
       LIKWID_MARKER_START("GA");
 // Evaluate the fitness of the population
@@ -132,6 +159,7 @@ namespace mudock {
       for (int element_index = 0; element_index < population_size; ++element_index) {
         auto& element = population[element_index];
 
+        #if 0
         std::memcpy(altered_x.get()->data(), ligand_x, num_atoms * sizeof(fp_type));
         std::memcpy(altered_y.get()->data(), ligand_y, num_atoms * sizeof(fp_type));
         std::memcpy(altered_z.get()->data(), ligand_z, num_atoms * sizeof(fp_type));
@@ -147,6 +175,35 @@ namespace mudock {
               frag_masks,
               frag_start_indexes,
               frag_stop_indexes);
+        #endif
+
+        #if VINA
+
+        info("Calculating Vina energy");
+
+        const auto energy = scoring(
+            protein_num_atoms,
+            protein_x,
+            protein_y,
+            protein_z,
+            p_is_hbond_acceptor,
+            p_is_hbond_donor,
+            p_is_hydrophobic,
+            p_vdw_radius,
+            num_atoms,
+            ligand_x,
+            ligand_y, 
+            ligand_z,
+            ligand_is_hbond_acceptor,
+            ligand_is_hbond_donor,
+            ligand_is_hydrophobic,
+            ligand_vdw_radius,
+            num_rotamers,
+            interacting_pairs_first,
+            interacting_pairs_second,
+            num_interacting_pairs);
+
+        #else
 
         // compute the energy of the system
         const auto energy = calc_energy(altered_x.get()->data(),
@@ -172,9 +229,14 @@ namespace mudock {
                                         grid_maps,
                                         electro_map,
                                         desolv_map);
+
+        #endif
+
         element.score     = energy; // dummy implementation to test the genetic
       }
       LIKWID_MARKER_STOP("GA");
+
+      #if 0
 
       // Generate the new population
 #pragma clang loop interleave(enable) unroll(enable)
@@ -216,6 +278,7 @@ namespace mudock {
             next_individual.genes[i] += get_mutation_change_distribution(generator, dist) * angle_step;
         }
       }
+      #endif
 
       // swap the new population with the old one
       const auto temp = population;
