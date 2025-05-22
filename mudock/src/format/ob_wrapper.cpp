@@ -357,4 +357,51 @@ namespace mudock {
   
     return false;
   }
+
+  std::unordered_map<int, std::vector<int>> get_atoms_in_frag(
+    const std::span<const bond>& bonds, 
+    const std::size_t num_atom
+  ){
+    auto graph = make_graph(bonds, num_atom);
+    const auto ligand_fragments =
+        std::make_unique<mudock::fragments<mudock::static_containers>>(graph,
+                                                                       bonds,
+                                                                       num_atom);
+
+    auto rigid_pieces = ligand_fragments.get()->get_rigid_pieces();
+
+    std::unordered_map<int, std::vector<int>> atoms_in_fragment;
+
+    for (int i = 0; i < num_atom; ++i) {
+        atoms_in_fragment[rigid_pieces[i]].push_back(i);
+    }
+
+    return atoms_in_fragment;
+  }
+
+  /// The neighbors of an atom are defined as the atoms that are connected to it a number of bonds <= 3
+  std::vector<int> calc_neighbors(const ob_mol_wrapper& mol, int atomIdx) {
+
+    std::set<int> neighbors;
+            
+    OpenBabel::OBAtom* oba0 = mol->GetAtom(atomIdx + 1); // OpenBabel uses 1-based indexing
+    neighbors.insert(oba0->GetIndex());
+
+    OpenBabel::OBBondIterator it0 = oba0->BeginBonds();
+    for (OpenBabel::OBAtom* oba1 = oba0->BeginNbrAtom(it0); oba1 != nullptr; oba1 = oba0->NextNbrAtom(it0)) {
+        neighbors.insert(oba1->GetIndex());
+        OpenBabel::OBBondIterator it1 = oba0->BeginBonds();
+        for (OpenBabel::OBAtom* oba2 = oba1->BeginNbrAtom(it1); oba2 != nullptr; oba2 = oba1->NextNbrAtom(it1)) {
+            neighbors.insert(oba2->GetIndex());
+            OpenBabel::OBBondIterator it2 = oba1->BeginBonds();
+            for (OpenBabel::OBAtom* oba3 = oba2->BeginNbrAtom(it2); oba3 != nullptr; oba3 = oba2->NextNbrAtom(it2)) {
+                neighbors.insert(oba3->GetIndex());
+            }
+        }
+    }
+
+    std::vector<int> out(neighbors.begin(), neighbors.end());
+    return out;
+  }
+
 } // namespace mudock

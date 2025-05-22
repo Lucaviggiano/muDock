@@ -15,6 +15,7 @@
 #include <mudock/molecule/property_table.hpp>
 #include <mudock/type_alias.hpp>
 #include <span>
+#include <set>
 
 namespace mudock {
 
@@ -28,6 +29,9 @@ namespace mudock {
 
     template<typename T>
     using bonds_array_type = container_aliases::template bonds_size<T>;
+
+    template<typename T>
+    using neighbors_array_type = container_aliases::template neighbors_size<T>;
 
   private:
     // the atoms chemical properties
@@ -50,6 +54,9 @@ namespace mudock {
     atoms_array_type<int> atom_is_hydrophobic;
     atoms_array_type<fp_type> atom_vdw_radius;
     int atoms_size = int{0};
+    
+    /// the neighbors of each atom
+    neighbors_array_type<int> atoms_neighbors; /// if -1 -> no more neighbors for current atom
 
     // the intra-molecular connections
     bonds_array_type<bond> bond_descriptions;
@@ -98,6 +105,7 @@ namespace mudock {
     [[nodiscard]] inline auto get_is_hbond_acceptor() { return make_span(atom_is_hbond_acceptor, atoms_size);}
     [[nodiscard]] inline auto get_is_hydrophobic() { return make_span(atom_is_hydrophobic, atoms_size);}
     [[nodiscard]] inline auto get_vdw_radius() { return make_span(atom_vdw_radius, atoms_size);}
+    [[nodiscard]] inline auto get_neighbors() { return make_span(atoms_neighbors, atoms_size * max_static_neighbors());}
 
     // utility functions to get the span of the whole molecule (read only)
     [[nodiscard]] inline auto get_element() const { return make_span(atom_elements, atoms_size); }
@@ -119,6 +127,7 @@ namespace mudock {
     [[nodiscard]] inline auto get_is_hbond_acceptor() const { return make_span(atom_is_hbond_acceptor, atoms_size);}
     [[nodiscard]] inline auto get_is_hydrophobic() const { return make_span(atom_is_hydrophobic, atoms_size);}
     [[nodiscard]] inline auto get_vdw_radius() const { return make_span(atom_vdw_radius, atoms_size);}
+    [[nodiscard]] inline auto get_neighbors() const { return make_span(atoms_neighbors, atoms_size * max_static_neighbors());}
     
     // utility functions to get the ref to an atom element (read + write)
     [[nodiscard]] inline auto& elements(const int index) { return atom_elements[index]; }
@@ -140,6 +149,7 @@ namespace mudock {
     [[nodiscard]] inline auto& is_hbond_acceptor(const int index) { return atom_is_hbond_acceptor[index];}
     [[nodiscard]] inline auto& is_hydrophobic(const int index) { return atom_is_hydrophobic[index];}
     [[nodiscard]] inline auto& vdw_radius(const int index) { return atom_vdw_radius[index];}
+    [[nodiscard]] inline auto& neighbors(const int index, const int n) { return atoms_neighbors[index * max_static_neighbors() + n];}
 
     // utility functions to get the span of the whole molecule (read only)
     [[nodiscard]] inline const auto& elements(const int index) const { return atom_elements[index]; }
@@ -163,6 +173,7 @@ namespace mudock {
     [[nodiscard]] inline const auto& is_hbond_acceptor(const int index) const { return atom_is_hbond_acceptor[index];}
     [[nodiscard]] inline const auto& is_hydrophobic(const int index) const { return atom_is_hydrophobic[index];}
     [[nodiscard]] inline const auto& vdw_radius(const int index) const { return atom_vdw_radius[index];}
+    [[nodiscard]] inline const auto& neighbors(const int index, const int n) const { return atoms_neighbors[index * max_static_neighbors() + n];}
 
   };
 
@@ -171,13 +182,7 @@ namespace mudock {
   //===------------------------------------------------------------------------------------------------------
 
   using dynamic_molecule = molecule<dynamic_containers>;
-  struct static_molecule : public molecule<static_containers> {
-    atoms_array_type<std::pair<int, int>> interacting_pairs;
-    atoms_array_type<fp_type> intra_dst_mtx;
-    atoms_array_type<fp_type> intra_lig_atoms_vdw_sum;
-    atoms_array_type<int> intra_lig_atom_is_hbond;
-    atoms_array_type<int> intra_lig_atom_is_hydrophobic;
-};
+  using static_molecule = molecule<static_containers>;
 
   // this is the concept that defines a molecule, which is any molecule for which we have defined a
   // special container and we are agnostic about it.
@@ -211,6 +216,7 @@ namespace mudock {
     mudock::resize(atom_is_hydrophobic, n_atoms);
     mudock::resize(atom_vdw_radius, n_atoms);
     mudock::resize(bond_descriptions, n_bonds);
+    mudock::resize(atoms_neighbors, n_atoms * max_static_neighbors());
     atoms_size = n_atoms;
     bonds_size = n_bonds;
   }
@@ -237,6 +243,8 @@ namespace mudock {
     mudock::remove_atom(atom_vdw_radius, index);
     mudock::remove_atom(atom_num_hbond, index);
     atoms_size--;
+
+    /// TODO: update the neighbors
 
     // now we need to update the bonds as well
     auto end_loop = std::begin(bond_descriptions) + bonds_size;

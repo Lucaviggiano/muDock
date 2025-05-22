@@ -1,11 +1,9 @@
 #include <stdio.h>
 #include <vector>
 #include <cmath>
-#include <cassert>
 #include <utility> 
 #include <map>
 #include <string>
-#include <queue>
 #include <set>
 
 #include <filesystem>
@@ -17,6 +15,7 @@
 #include <mudock/type_alias.hpp>
 #include <mudock/chem/elements.hpp>
 #include <mudock/molecule/containers.hpp>
+#include <mudock/molecule/constraints.hpp>
 
 #include <openbabel/atom.h>
 #include <openbabel/elements.h>
@@ -77,7 +76,6 @@ namespace mudock {
 
     fp_type hbonding(const std::vector<fp_type> dst_mtx, const std::vector<bool> rec_lig_is_hb) {
         fp_type h_bonding = 0;
-	
         for( size_t i = 0; i < dst_mtx.size(); i++) {
             bool h_bond_1 = rec_lig_is_hb[i] && (dst_mtx[i] <= -0.7);
             bool h_bond_2_cond = rec_lig_is_hb[i] && (dst_mtx[i] < 0) && (dst_mtx[i] > -0.7);
@@ -107,14 +105,6 @@ namespace mudock {
         fp_type hbond = hbonding(d_ij, rec_lig_is_hbond);
 
         return GAUSS1_COEFF * g1 + GAUSS2_COEFF * g2 + REPULSION_COEFF * rep + HYDROPHOBIC_COEFF * hydro + H_BOND_COEFF * hbond;
-    }
-
-
-    void print_mtx(std::vector<fp_type> mtx){
-        for(size_t i = 0; i < mtx.size(); i++){
-            printf("%f, ", mtx[i]);
-        }
-        printf("\n");
     }
 
     void parse_data(
@@ -175,7 +165,9 @@ namespace mudock {
         const int* __restrict__ l_is_hbond_donor,
         const int* __restrict__ l_is_hydrophobic,
         const fp_type* __restrict__ l_vdw_radius,
-        const std::vector<std::pair<int, int>> interacting_pairs,
+        const int* __restrict__ interacting_pairs_first,
+        const int* __restrict__ interacting_pairs_second,
+        const size_t num_interacting_pairs,
 
         std::vector<fp_type>& intra_dst_mtx,
         std::vector<fp_type>& intra_rec_lig_atom_vdw_sum,     
@@ -185,9 +177,9 @@ namespace mudock {
 
         printf("Parsing intra data\n");
 
-        for(size_t i = 0; i < interacting_pairs.size(); i++){
-            int atom_1 = interacting_pairs[i].first;
-            int atom_2 = interacting_pairs[i].second;
+        for(size_t i = 0; i < num_interacting_pairs; i++){
+            int atom_1 = interacting_pairs_first[i];
+            int atom_2 = interacting_pairs_second[i];
 
             fp_type dst = sqrt(
                 pow(ligand_x[atom_1] - ligand_x[atom_2], 2) +
@@ -231,7 +223,9 @@ namespace mudock {
         const int* __restrict__ l_is_hydrophobic,
         const fp_type* __restrict__ l_vdw_radius,
         const size_t active_torsions,
-        const std::vector<std::pair<int, int>> interacting_pairs
+        const int* __restrict__ interacting_pairs_first,
+        const int* __restrict__ interacting_pairs_second,
+        const size_t num_interacting_pairs
     ){
 
         std::vector<fp_type> dst_mtx                  = std::vector<fp_type>();
@@ -277,7 +271,9 @@ namespace mudock {
             l_is_hbond_donor,
             l_is_hydrophobic,
             l_vdw_radius,
-            interacting_pairs,
+            interacting_pairs_first,
+            interacting_pairs_second,
+            num_interacting_pairs,
 
             intra_dst_mtx,
             intra_rec_lig_atom_vdw_sum,     
@@ -285,10 +281,11 @@ namespace mudock {
             intra_rec_lig_is_hydrophobic   
         );
 
-        printf("dst_mtx len %ld\n", dst_mtx.size());
-        printf("intra_dst_mtx len %ld\n", intra_dst_mtx.size());
         fp_type intra_score = score_function(intra_dst_mtx, intra_rec_lig_atom_vdw_sum, intra_rec_lig_is_hydrophobic, intra_rec_lig_is_hbond);
         fp_type inter_score = score_function(dst_mtx, rec_lig_atom_vdw_sum, rec_lig_is_hydrophobic, rec_lig_is_hbond);
+        
+        printf("dst_mtx len %ld\n", dst_mtx.size());
+        printf("intra_dst_mtx len %ld\n", intra_dst_mtx.size());
         printf("Score inter %f\n", inter_score); 
         printf("Score intra %f\n", intra_score);
         
@@ -297,74 +294,17 @@ namespace mudock {
 
 } 
 
-using namespace OpenBabel;
 using namespace std;
 
-void printAtomsInFragment(const std::unordered_map<int, std::vector<int>>& atoms_in_fragment) {
-    for (const auto& [fragment_id, atom_indices] : atoms_in_fragment) {
-        std::cout << "Fragment " << fragment_id << ": ";
-        for (int atom_index : atom_indices) {
-            std::cout << atom_index << " ";
-        }
-        std::cout << std::endl;
-    }
-}
-
-std::unordered_map<int, std::vector<int>> get_atoms_in_frag(
-    const mudock::static_molecule &ligand
-){
-    auto graph = make_graph(ligand.get_bonds(), ligand.num_atoms());
-    const auto ligand_fragments =
-        std::make_unique<mudock::fragments<mudock::static_containers>>(graph,
-                                                                       ligand.get_bonds(),
-                                                                       ligand.num_atoms());
-
-    auto rigid_pieces = ligand_fragments.get()->get_rigid_pieces();
-
-    std::unordered_map<int, std::vector<int>> atoms_in_fragment;
-
-    for (int i = 0; i < ligand.num_atoms(); ++i) {
-        atoms_in_fragment[rigid_pieces[i]].push_back(i);
-    }
-
-    printAtomsInFragment(atoms_in_fragment);
-
-    return atoms_in_fragment;
-}
-
-std::set<int> get_neighbors(const OBMol& mol, int atomIdx) {
-
-    std::set<int> neighbors;
-            
-    OBAtom* oba0 = mol.GetAtom(atomIdx + 1); // OpenBabel uses 1-based indexing
-
-    OBBondIterator it0 = oba0->BeginBonds();
-    for (OBAtom* oba1 = oba0->BeginNbrAtom(it0); oba1 != nullptr; oba1 = oba0->NextNbrAtom(it0)) {
-        neighbors.insert(oba1->GetIndex());
-        OBBondIterator it1 = oba0->BeginBonds();
-        for (OBAtom* oba2 = oba1->BeginNbrAtom(it1); oba2 != nullptr; oba2 = oba1->NextNbrAtom(it1)) {
-            neighbors.insert(oba2->GetIndex());
-            OBBondIterator it2 = oba1->BeginBonds();
-            for (OBAtom* oba3 = oba2->BeginNbrAtom(it2); oba3 != nullptr; oba3 = oba2->NextNbrAtom(it2)) {
-                neighbors.insert(oba3->GetIndex());
-            }
-        }
-    }
-  
-    return neighbors;
-}
-
-
-std::vector<std::pair<int, int>> get_interactive_pairs(
-    const OBMol& mol,
-    const mudock::static_molecule &ligand
-){
+std::vector<std::pair<int, int>> get_interactive_pairs(mudock::static_molecule& ligand){
     
     std::set<std::pair<int, int>> unique_out;
 
-    std::unordered_map<int, std::vector<int>> atoms_in_fragment = get_atoms_in_frag(ligand);
+    const std::span<const mudock::bond>& bonds = ligand.get_bonds(); 
+    const size_t num_atom = ligand.num_atoms();
 
-    const auto num_atoms = ligand.num_atoms();
+    std::unordered_map<int, std::vector<int>> atoms_in_fragment = get_atoms_in_frag(bonds, num_atom);
+
     const auto num_rotamers = atoms_in_fragment.size();
                                                                        
     for (size_t rot1 = 0; rot1 < num_rotamers; ++rot1) {
@@ -374,7 +314,6 @@ std::vector<std::pair<int, int>> get_interactive_pairs(
         for(size_t i = 0; i < atoms_rot1.size(); ++i){
 
             int atom1 = atoms_rot1[i];
-            std::set<int> neighbors = get_neighbors(mol, atom1);
             
             for(size_t rot2 = rot1 + 1; rot2 < num_rotamers; ++rot2){
 
@@ -385,7 +324,14 @@ std::vector<std::pair<int, int>> get_interactive_pairs(
 
                     int atom2 = atoms_rot2[j];
 
-                    if(neighbors.find(atom2) != neighbors.end()) continue;
+                    /// Search for the atom2 in the neighbors of atom1
+                    bool found = false;
+                    for(size_t nb = 0; nb < mudock::max_static_neighbors() && !found; nb++) {
+                        int atom1_nb = ligand.neighbors(atom1, nb);
+                        if (atom1_nb == atom2) found = true;
+                        else if (atom1_nb == -1) break;
+                    }
+                    if (found) continue;
                     
                     /// Opendock: if [i, j] in self.torsion_bond_index or [j, i] in self.torsion_bond_index: continue
                     
@@ -396,24 +342,28 @@ std::vector<std::pair<int, int>> get_interactive_pairs(
                     /// Order pair before adding it to the output
                     int a = std::min(atom1, atom2);
                     int b = std::max(atom1, atom2);
-                    if (unique_out.insert({a, b}).second) {
-                        printf("[%d, %d], ", a, b);
+                    if(unique_out.insert({a, b}).second) {
+                        //printf("[%d, %d], ", a, b);
+                        //printf("\n");
                     }
                 }
             }
         }
     }
 
-    printf("\n");
     printf("Total interacting pairs: %ld\n", unique_out.size());
 
     std::vector<std::pair<int, int>> out(unique_out.begin(), unique_out.end());
     return out;
 }
 
+/// - come allocare più memoria se la molecola è di tipo statico
+/// - come fa un torsion bond a sopravvivere fino al check post neighbors
+/// - se quello che hai spostato è giusto
+/// - come compilare evaluate fitness con -DVINA
+/// - camel case o snake case
+/// - va bene il modo in cui rappresento gli interacting pairs
 int main(int argc, char* argv[]) {
-
-    /// print(", ".join(map(str, self.receptor.rec_heavy_atoms_xyz[:, 0].tolist())))
 
     if (argc != 3) {
         cerr << "Usage: " << argv[0] << " <input_rec.pdb> <input_lig.pdb>" << endl;
@@ -434,7 +384,14 @@ int main(int argc, char* argv[]) {
     auto& ligand    = *ligand_ptr;
     mudock::convert<mudock::rotate_check>(ligand, ob_mol_lig);
 
-    std::vector<std::pair<int, int>> interactive_pairs = get_interactive_pairs(*ob_mol_lig, ligand);
+    std::vector<std::pair<int, int>> interacting_pairs = get_interactive_pairs(ligand);
+    size_t num_interacting_pairs = interacting_pairs.size();
+    std::vector<int> interacting_pairs_first(num_interacting_pairs);
+    std::vector<int> interacting_pairs_second(num_interacting_pairs);
+    for(int i = 0; i < num_interacting_pairs; i++){
+        interacting_pairs_first[i] = interacting_pairs[i].first;
+        interacting_pairs_second[i] = interacting_pairs[i].second;
+    }
 
     std::printf("Score: %f\n", mudock::scoring(  
                                             protein.num_atoms(),
@@ -454,7 +411,9 @@ int main(int argc, char* argv[]) {
                                             ligand.get_is_hydrophobic().data(),
                                             ligand.get_vdw_radius().data(),
                                             ligand.num_rotamers(),
-                                            interactive_pairs
+                                            interacting_pairs_first.data(),
+                                            interacting_pairs_second.data(),
+                                            num_interacting_pairs
                                             ));
 
     return 0;

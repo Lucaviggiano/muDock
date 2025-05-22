@@ -73,6 +73,8 @@ namespace mudock {
   };
 
   bool isHydrophobicAtom(const ob_mol_wrapper &mol, const OpenBabel::OBAtom *atom);
+  std::unordered_map<int, std::vector<int>> get_atoms_in_frag(const std::span<const bond>& bonds, const std::size_t num_atom);
+  std::vector<int> calc_neighbors(const mudock::ob_mol_wrapper& mol, int atomIdx);
 
   template<auto rotor_check, class molecule_type>
     requires is_molecule<molecule_type> && is_rotate_check<decltype(rotor_check)>
@@ -133,6 +135,23 @@ namespace mudock {
       mudock_bond.can_rotate   = rotor_check(*bond);
 
       ++mudock_bond_index;
+    }
+
+    /// Calculate interactive pairs if the molecule is a ligand
+    if constexpr (std::same_as<std::remove_cvref_t<molecule_type>, static_molecule>) {
+      printf("Calc neighbors: \n");
+      for (int atom_id = 0; atom_id < num_atoms; ++atom_id) {
+        const std::vector<int> atom_neighbors = calc_neighbors(source, atom_id);
+        assert(atom_neighbors.size() <= max_static_neighbors());
+
+        for(int i = 0; i < max_static_neighbors(); ++i){
+          if(i < atom_neighbors.size()){
+            dest.neighbors(atom_id, i) = atom_neighbors[i];
+          } else {
+            dest.neighbors(atom_id, i) = -1;
+          }
+        }
+      }
     }
 
     // store the molecule name
