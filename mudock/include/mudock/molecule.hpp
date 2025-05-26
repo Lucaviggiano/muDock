@@ -243,8 +243,33 @@ namespace mudock {
     mudock::remove_atom(atom_vdw_radius, index);
     mudock::remove_atom(atom_num_hbond, index);
     atoms_size--;
-
-    /// TODO: update the neighbors
+    
+    /// Update the neighbors
+    
+    ///Clear the neighbors of the removed atom
+    const int max_neighbors = max_static_neighbors();
+    size_t start = index * max_neighbors;
+    std::shift_left(atoms_neighbors.begin() + start,
+                    atoms_neighbors.end(),
+                    max_neighbors);
+    atoms_neighbors.resize(atoms_size * max_neighbors);
+    
+    /// For each atom, we need to remove the index of the removed atom from its neighbors
+    for (int i = 0; i < num_atoms; ++i) {
+      int* neighbors = &atoms_neighbors[i * max_neighbors];
+      int write_pos = 0;
+      for (int j = 0; j < max_neighbors; ++j) {
+          int n = neighbors[j];
+          if (n == -1) break;
+          if (n != index) {
+              neighbors[write_pos++] = n;
+          }
+      }
+      while (write_pos < max_neighbors) {
+          neighbors[write_pos++] = -1;
+      }
+    }
+  
 
     // now we need to update the bonds as well
     auto end_loop = std::begin(bond_descriptions) + bonds_size;
