@@ -4,6 +4,7 @@
 #include <mudock/format.hpp>
 #include <mudock/molecule.hpp>
 #include <mudock/cpp_implementation/vina.hpp>
+#include <mudock/log.hpp>
 
 int main(int argc, char* argv[]) {
 
@@ -24,16 +25,10 @@ int main(int argc, char* argv[]) {
     auto& ligand    = *ligand_ptr;
     mudock::convert<mudock::rotate_check>(ligand, ob_mol_lig);
 
-    std::vector<std::pair<int, int>> interacting_pairs = get_interactive_pairs(ligand);
-    size_t num_interacting_pairs = interacting_pairs.size();
-    std::vector<int> interacting_pairs_first(num_interacting_pairs);
-    std::vector<int> interacting_pairs_second(num_interacting_pairs);
-    for(int i = 0; i < num_interacting_pairs; i++){
-        interacting_pairs_first[i] = interacting_pairs[i].first;
-        interacting_pairs_second[i] = interacting_pairs[i].second;
-    }
+    auto [ip_first, ip_second] = get_interactive_pairs(ligand);
 
-    std::printf("Score: %f\n", mudock::scoring(  
+    mudock::info("Starting vina...");
+    mudock::fp_type score = mudock::scoring(  
                                             protein.num_atoms(),
                                             protein.get_x().data(),
                                             protein.get_y().data(),
@@ -51,10 +46,13 @@ int main(int argc, char* argv[]) {
                                             ligand.get_is_hydrophobic().data(),
                                             ligand.get_vdw_radius().data(),
                                             ligand.num_rotamers(),
-                                            interacting_pairs_first.data(),
-                                            interacting_pairs_second.data(),
-                                            num_interacting_pairs
-                                            ));
+                                            ip_first.data(),
+                                            ip_second.data(),
+                                            ip_first.size()
+                                            );
+
+    mudock::info("Vina score: ", score);
+    mudock::info("Done with vina.");
 
     return 0;
 }

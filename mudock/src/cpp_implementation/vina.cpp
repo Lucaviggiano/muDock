@@ -275,9 +275,9 @@ namespace mudock {
         return score;
     }
 
-    std::vector<std::pair<int, int>> get_interactive_pairs(mudock::static_molecule& ligand){
+    std::pair<std::vector<int>, std::vector<int>> get_interactive_pairs(mudock::static_molecule& ligand){
         
-        std::set<std::pair<int, int>> unique_out;
+        std::pair<std::vector<int>, std::vector<int>> out;
 
         const std::span<const mudock::bond>& bonds = ligand.get_bonds(); 
         const size_t num_atom = ligand.num_atoms();
@@ -321,17 +321,14 @@ namespace mudock {
                         /// Order pair before adding it to the output
                         int a = std::min(atom1, atom2);
                         int b = std::max(atom1, atom2);
-                        if(unique_out.insert({a, b}).second) {
-                            //printf("[%d, %d], ", a, b);
-                            //printf("\n");
-                        }
+                        out.first.push_back(a);
+                        out.second.push_back(b);
                     }
                 }
             }
         }
 
-        info("Total interacting pairs: ", unique_out.size());
-        std::vector<std::pair<int, int>> out(unique_out.begin(), unique_out.end());
+        info("Total interacting pairs: ", out.first.size());
         return out;
     }
 }

@@ -77,14 +77,8 @@ namespace mudock {
     const auto protein_num_atoms = protein.get()->num_atoms();
 
     /// Parse interacting pairs of the ligand
-    std::vector<std::pair<int, int>> interacting_pairs = get_interactive_pairs(ligand);
-    size_t num_interacting_pairs = interacting_pairs.size();
-    std::vector<int> interacting_pairs_first(num_interacting_pairs);
-    std::vector<int> interacting_pairs_second(num_interacting_pairs);
-    for(int i = 0; i < num_interacting_pairs; i++){
-        interacting_pairs_first[i] = interacting_pairs[i].first;
-        interacting_pairs_second[i] = interacting_pairs[i].second;
-    }
+    auto [ip_first, ip_second] = get_interactive_pairs(ligand);
+    size_t num_interacting_pairs = ip_first.size();
 
     // Find out the rotatable bonds in the ligand
     auto graph = make_graph(ligand.get_bonds(), ligand.num_atoms());
@@ -148,8 +142,8 @@ namespace mudock {
                      lig_is_hbond_dn.data(),
                      lig_is_hydro.data(),
                      lig_vdw_radius.data(),
-                     interacting_pairs_first.data(),
-                     interacting_pairs_second.data(),
+                     ip_first.data(),
+                     ip_second.data(),
                      num_interacting_pairs,
 
                      map_ligand_offsets.data(),

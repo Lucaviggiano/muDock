@@ -3,7 +3,7 @@
 #include <mudock/molecule.hpp>
 
 namespace mudock {
-    std::vector<std::pair<int, int>> get_interactive_pairs(static_molecule& ligand);
+    std::pair<std::vector<int>, std::vector<int>> get_interactive_pairs(static_molecule& ligand);
 
     fp_type scoring(  
         /// Protein data

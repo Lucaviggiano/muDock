@@ -181,6 +181,17 @@ namespace mudock {
         
         // compute the energy of the system
         #if VINA
+
+          #if TRANSFORM
+            const fp_type* __restrict__ x = altered_x.get()->data();
+            const fp_type* __restrict__ y = altered_y.get()->data();
+            const fp_type* __restrict__ z = altered_z.get()->data();
+          #else
+            const fp_type* __restrict__ x = ligand_x;
+            const fp_type* __restrict__ y = ligand_y;
+            const fp_type* __restrict__ z = ligand_z;
+          #endif
+
         const auto energy = scoring(
             protein_num_atoms,
             protein_x,
@@ -191,9 +202,9 @@ namespace mudock {
             p_is_hydrophobic,
             p_vdw_radius,
             num_atoms,
-            altered_x.get()->data(),
-            altered_y.get()->data(),
-            altered_z.get()->data(),
+            x,
+            y,
+            z,
             ligand_is_hbond_acceptor,
             ligand_is_hbond_donor,
             ligand_is_hydrophobic,
