@@ -24,7 +24,7 @@ int main(int argc, char* argv[]) {
 
   mudock::apply_autodock_forcefield(protein);
 
-  #if VINA
+  #if 1
     auto tp  = mudock::point3D{};
     auto itp = mudock::index3D{1, 1, 1};
     auto sv  = std::vector<mudock::grid_atom_map>{};
@@ -78,6 +78,7 @@ int main(int argc, char* argv[]) {
     mudock::manage_cuda(args.device_confs,
                         threadpool,
                         args.knobs,
+                        protein_ptr,
                         grid_atom_maps,
                         electrostatic_map,
                         desolvation_map,

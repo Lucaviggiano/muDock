@@ -8,11 +8,15 @@
 #include <mudock/cpp_implementation/geometric_transformations.hpp>
 #include <mudock/cpp_implementation/mutate.hpp>
 #include <mudock/cpp_implementation/weed_bonds.hpp>
+#include <mudock/cpp_implementation/vina.hpp>
 #include <mudock/cuda_implementation/evaluate_fitness.cuh>
 #include <mudock/cuda_implementation/virtual_screen.cuh>
 #include <mudock/grid.hpp>
 #include <mudock/utils.hpp>
 #include <span>
+
+#define MAX_INTERACTING_PAIRS 1000
+#define TRANSFORM 1
 
 namespace mudock {
   // TODO this can be removed, only need the nbmatrix
@@ -35,9 +39,20 @@ namespace mudock {
         ligand_Rii(stream),
         ligand_epsij_hb(stream),
         ligand_epsii(stream),
+        ligand_vdw_radius(stream),
+        vina_buf_dst_mtx(stream),
+        vina_buf_vdw_mtx(stream),
         ligand_num_hbond(stream),
         ligand_num_atoms(stream),
         ligand_num_rotamers(stream),
+        ligand_is_hbond_acceptor(stream),
+        ligand_is_hbond_donor(stream),
+        ligand_is_hydrophobic(stream),
+        interacting_pairs_first(stream),
+        interacting_pairs_second(stream),
+        ligand_tot_ip(stream),
+        vina_buf_is_hb_mtx(stream),
+        vina_buf_is_hy_mtx(stream),
         ligand_fragments(stream),
         frag_start_atom_indices(stream),
         frag_stop_atom_indices(stream),
@@ -77,10 +92,23 @@ namespace mudock {
     ligand_Rii.alloc(tot_atoms_in_batch);
     ligand_epsij_hb.alloc(tot_atoms_in_batch);
     ligand_epsii.alloc(tot_atoms_in_batch);
+    ligand_vdw_radius.alloc(tot_atoms_in_batch);
+    /// TODO: chiedi se va bene così
+    vina_buf_dst_mtx.alloc(tot_atoms_in_batch * dev.get()->num_atoms);
+    vina_buf_vdw_mtx.alloc(tot_atoms_in_batch * dev.get()->num_atoms);
     // TODO check if it is required
     ligand_num_hbond.alloc(tot_atoms_in_batch);
     ligand_num_atoms.alloc(batch_ligands);
     ligand_num_rotamers.alloc(batch_ligands);
+    ligand_is_hbond_acceptor.alloc(tot_atoms_in_batch);
+    ligand_is_hbond_donor.alloc(tot_atoms_in_batch);
+    ligand_is_hydrophobic.alloc(tot_atoms_in_batch);
+    // Allocate the interacting pairs
+    interacting_pairs_first.alloc(batch_ligands * MAX_INTERACTING_PAIRS);
+    interacting_pairs_second.alloc(batch_ligands * MAX_INTERACTING_PAIRS);
+    ligand_tot_ip.alloc(batch_ligands);
+    vina_buf_is_hb_mtx.alloc(tot_atoms_in_batch * dev.get()->num_atoms);
+    vina_buf_is_hy_mtx.alloc(tot_atoms_in_batch * dev.get()->num_atoms);
     ligand_scores.alloc(batch_ligands);
     best_chromosomes.alloc(batch_ligands);
     // Bonds
@@ -93,6 +121,8 @@ namespace mudock {
     chromosomes.alloc(population_stride * batch_ligands);
     // Support data precomputation
     map_texture_index.alloc(tot_atoms_in_batch);
+
+    int tot_interacting_pairs{0};
 
     // Copy data
     std::size_t index{0};
@@ -113,12 +143,16 @@ namespace mudock {
       // Place the molecule to the center of the target protein
       const auto x = ligand.get()->get_x(), y = ligand.get()->get_y(), z = ligand.get()->get_z();
       const auto ligand_center_of_mass = compute_center_of_mass(x, y, z);
-      translate_molecule(x,
-                         y,
-                         z,
+      /// TODO: notify that there was a problem
+      #if TRANSFORM
+      translate_molecule(x.data(),
+                         y.data(),
+                         z.data(),
+                         num_atoms,
                          dev.get()->center_maps.x - ligand_center_of_mass.x,
                          dev.get()->center_maps.y - ligand_center_of_mass.y,
                          dev.get()->center_maps.z - ligand_center_of_mass.z);
+      #endif
 
       std::memcpy((void *) (original_ligand_x.host_pointer() + stride_atoms),
                   x.data(),
@@ -131,10 +165,16 @@ namespace mudock {
                   num_atoms * sizeof(fp_type));
       // Fragments
       // Find out the rotatable bonds in the ligand
-      auto graph = make_graph(ligand.get()->get_bonds());
+      auto graph = make_graph(ligand.get()->get_bonds(), num_atoms);
       // TODO check this assignment
-      batch_fragments[index]  = {graph, ligand.get()->get_bonds(), ligand.get()->num_atoms()};
+      batch_fragments[index]  = {graph, ligand.get()->get_bonds(), num_atoms};
       const auto &l_fragments = batch_fragments[index];
+
+      /// Calc the interacting pairs for Vina
+      auto [ip_first, ip_second] = get_interactive_pairs(*(ligand.get()));
+      tot_interacting_pairs = ip_first.size();
+      assert(tot_interacting_pairs <= MAX_INTERACTING_PAIRS);
+      ligand_tot_ip.host_pointer()[index] = tot_interacting_pairs;
 
       // Randomly initialize the population
       const auto num_rotamers                   = l_fragments.get_num_rotatable_bonds();
@@ -193,6 +233,24 @@ namespace mudock {
       std::memcpy((void *) (ligand_num_hbond.host_pointer() + stride_atoms),
                   ligand.get()->get_num_hbond().data(),
                   num_atoms * sizeof(int));
+      std::memcpy((void *) (ligand_vdw_radius.host_pointer() + stride_atoms),
+                  ligand.get()->get_vdw_radius().data(),
+                  num_atoms * sizeof(fp_type));
+      std::memcpy((void *) (ligand_is_hbond_acceptor.host_pointer() + stride_atoms),
+                  ligand.get()->get_is_hbond_acceptor().data(),
+                  num_atoms * sizeof(int));
+      std::memcpy((void *) (ligand_is_hbond_donor.host_pointer() + stride_atoms),
+                  ligand.get()->get_is_hbond_donor().data(),
+                  num_atoms * sizeof(int));
+      std::memcpy((void *) (ligand_is_hydrophobic.host_pointer() + stride_atoms),
+                  ligand.get()->get_is_hydrophobic().data(),
+                  num_atoms * sizeof(int));
+      std::memcpy((void *) (interacting_pairs_first.host_pointer() + stride_atoms),
+                  ip_first.data(),
+                  tot_interacting_pairs * sizeof(int));
+      std::memcpy((void *) (interacting_pairs_second.host_pointer() + stride_atoms),
+                  ip_second.data(),
+                  tot_interacting_pairs * sizeof(int));
 
       std::size_t atom_index{0};
       for (auto &autodock_t: ligand.get()->get_autodock_type()) {
@@ -219,6 +277,13 @@ namespace mudock {
     ligand_Rii.copy_host2device();
     ligand_epsij_hb.copy_host2device();
     ligand_epsii.copy_host2device();
+    ligand_vdw_radius.copy_host2device();
+    ligand_is_hbond_acceptor.copy_host2device();
+    ligand_is_hbond_donor.copy_host2device();
+    ligand_is_hydrophobic.copy_host2device();
+    interacting_pairs_first.copy_host2device();
+    interacting_pairs_second.copy_host2device();
+    ligand_tot_ip.copy_host2device();
     ligand_num_hbond.copy_host2device();
     map_texture_index.copy_host2device();
     index_nonbonds.copy_host2device();
@@ -269,6 +334,13 @@ namespace mudock {
                                                                   ligand_Rii.dev_pointer(),
                                                                   ligand_epsij_hb.dev_pointer(),
                                                                   ligand_epsii.dev_pointer(),
+                                                                  ligand_vdw_radius.dev_pointer(),
+                                                                  ligand_is_hbond_acceptor.dev_pointer(),
+                                                                  ligand_is_hbond_donor.dev_pointer(),
+                                                                  ligand_is_hydrophobic.dev_pointer(),
+                                                                  interacting_pairs_first.dev_pointer(),
+                                                                  interacting_pairs_second.dev_pointer(),
+                                                                  ligand_tot_ip.dev_pointer(),
                                                                   index_nonbonds.dev_pointer(),
                                                                   nonbond_a1.dev_pointer(),
                                                                   nonbond_a2.dev_pointer(),
@@ -282,6 +354,18 @@ namespace mudock {
                                                                   map_texture_index.dev_pointer(),
                                                                   dev.get()->electro_tex,
                                                                   dev.get()->desolv_tex,
+                                                                  dev.get()->num_atoms,
+                                                                  dev.get()->protein_x.dev_pointer(),
+                                                                  dev.get()->protein_y.dev_pointer(),
+                                                                  dev.get()->protein_z.dev_pointer(),
+                                                                  dev.get()->p_vdw_radius.dev_pointer(),
+                                                                  dev.get()->p_is_hbond_acceptor.dev_pointer(),
+                                                                  dev.get()->p_is_hbond_donor.dev_pointer(),
+                                                                  dev.get()->p_is_hydrophobic.dev_pointer(),
+                                                                  vina_buf_dst_mtx.dev_pointer(),
+                                                                  vina_buf_vdw_mtx.dev_pointer(),
+                                                                  vina_buf_is_hb_mtx.dev_pointer(),
+                                                                  vina_buf_is_hy_mtx.dev_pointer(),
                                                                   curand_states.dev_pointer(),
                                                                   ligand_scores.dev_pointer(),
                                                                   best_chromosomes.dev_pointer());
@@ -299,11 +383,18 @@ namespace mudock {
     index = 0;
     for (auto &ligand: std::span(incoming_batch.molecules.data(), incoming_batch.num_ligands)) {
       // Reset the random number generator to improve consistency
-      apply(ligand.get()->get_x(),
-            ligand.get()->get_y(),
-            ligand.get()->get_z(),
+      #if 0
+      apply(ligand.get()->get_x().data(),
+            ligand.get()->get_y().data(),
+            ligand.get()->get_z().data(),
+            ligand.get()->num_atoms(),
             *(best_chromosomes.host_pointer() + index),
-            batch_fragments[index]);
+            batch_fragments[index]
+            num_rotamers,
+            frag_masks.data(),
+            frag_start_indexes.data(),
+            frag_stop_indexes.data());
+      #endif
       ligand->properties.assign(property_type::SCORE, std::to_string(ligand_scores.host_pointer()[index]));
       ++index;
     }

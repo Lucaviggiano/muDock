@@ -13,6 +13,7 @@ namespace mudock {
   void manage_cuda(const std::vector<std::string>& configurations,
                    threadpool& pool,
                    const knobs knobs,
+                   std::shared_ptr<dynamic_molecule>& protein,
                    std::shared_ptr<const grid_atom_mapper>& grid_atom_maps,
                    std::shared_ptr<const grid_map>& electro_map,
                    std::shared_ptr<const grid_map>& desolv_map,

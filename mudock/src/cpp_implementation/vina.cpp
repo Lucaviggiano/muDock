@@ -14,41 +14,35 @@
 #define H_BOND_COEFF        (- 0.587439)
 #define NROT_COEFF          (0.05846)
 
-#define FLATTENED_2D(x, y, index_x) ((y) * index_x + (x))
-
 namespace mudock {
 
-    fp_type distance(fp_type x1, fp_type y1, fp_type z1, fp_type x2, fp_type y2, fp_type z2) {
-        return sqrt(pow(x1 - x2, 2) + pow(y1 - y2, 2) + pow(z1 - z2, 2));
-    }
-
-    fp_type gauss1(const std::vector<fp_type> dst_mtx) {
+    inline fp_type gauss1(const fp_type* __restrict__ dst_mtx, int size) {
         fp_type gauss1 = 0;
-        for( size_t i = 0; i < dst_mtx.size(); i++) {
+        for( size_t i = 0; i < size; i++) {
             if(dst_mtx[i] != 0) gauss1 += exp(- pow(dst_mtx[i] / 0.5, 2));
         }
         return gauss1;
     }
 
-    fp_type gauss2(const std::vector<fp_type> dst_mtx) {
+    inline fp_type gauss2(const fp_type* __restrict__ dst_mtx, int size) {
         fp_type gauss2 = 0;
-        for( size_t i = 0; i < dst_mtx.size(); i++) {
+        for( size_t i = 0; i < size; i++) {
             if(dst_mtx[i] != 0) gauss2 += exp(- pow((dst_mtx[i] - 3) / 2, 2));
         }
         return gauss2;
     }
 
-    fp_type repulsion(const std::vector<fp_type> dst_mtx) {
+    inline fp_type repulsion(const fp_type* __restrict__ dst_mtx, int size) {
         fp_type repulsion = 0;
-        for( size_t i = 0; i < dst_mtx.size(); i++) {
+        for( size_t i = 0; i < size; i++) {
             repulsion += pow((dst_mtx[i] < 0) * dst_mtx[i], 2);
         }
         return repulsion;
     }
 
-    fp_type hydrophobic(const std::vector<fp_type> dst_mtx, const std::vector<bool> rec_lig_is_hydrophobic) {
+    inline fp_type hydrophobic(const fp_type* __restrict__ dst_mtx, const int* __restrict__ rec_lig_is_hydrophobic, int size) {
         fp_type hydrophobic = 0;
-        for( size_t i = 0; i < dst_mtx.size(); i++) {
+        for( size_t i = 0; i < size; i++) {
             bool hydro_1 = rec_lig_is_hydrophobic[i] && (dst_mtx[i] <= 0.5);
             bool hydro_2_cond = rec_lig_is_hydrophobic[i] && (dst_mtx[i] > 0.5) && (dst_mtx[i] < 1.5);
             fp_type hydro_2 = 1.5 * hydro_2_cond - hydro_2_cond * dst_mtx[i];
@@ -57,9 +51,9 @@ namespace mudock {
         return hydrophobic;
     }
 
-    fp_type hbonding(const std::vector<fp_type> dst_mtx, const std::vector<bool> rec_lig_is_hb) {
+    inline fp_type hbonding(const fp_type* __restrict__ dst_mtx, const int* __restrict__ rec_lig_is_hb, int size) {
         fp_type h_bonding = 0;
-        for( size_t i = 0; i < dst_mtx.size(); i++) {
+        for( size_t i = 0; i < size; i++) {
             bool h_bond_1 = rec_lig_is_hb[i] && (dst_mtx[i] <= -0.7);
             bool h_bond_2_cond = rec_lig_is_hb[i] && (dst_mtx[i] < 0) && (dst_mtx[i] > -0.7);
             fp_type h_bond_2 = h_bond_2_cond * (- dst_mtx[i]) / 0.7;
@@ -71,21 +65,22 @@ namespace mudock {
     fp_type score_function(
         const std::vector<fp_type> dst_mtx, 
         const std::vector<fp_type> rec_lig_atom_vdw_sum,
-        const std::vector<bool> rec_lig_is_hydrophobic,
-        const std::vector<bool> rec_lig_is_hbond
+        const std::vector<int> rec_lig_is_hydrophobic,
+        const std::vector<int> rec_lig_is_hbond
     ) {
 
-        std::vector<fp_type> d_ij = std::vector<fp_type>(dst_mtx.size(), 0);
+        const size_t size = dst_mtx.size();
+        std::vector<fp_type> d_ij = std::vector<fp_type>(size, 0);
 
-        for( size_t i = 0; i < dst_mtx.size(); i++) {
+        for( size_t i = 0; i < size; i++) {
             d_ij[i] = dst_mtx[i] - rec_lig_atom_vdw_sum[i];
         }
 
-        fp_type g1  = gauss1(d_ij);
-        fp_type g2  = gauss2(d_ij);
-        fp_type rep = repulsion(d_ij);
-        fp_type hydro = hydrophobic(d_ij, rec_lig_is_hydrophobic);
-        fp_type hbond = hbonding(d_ij, rec_lig_is_hbond);
+        fp_type g1  = gauss1(d_ij.data(), size);
+        fp_type g2  = gauss2(d_ij.data(), size);
+        fp_type rep = repulsion(d_ij.data(), size); 
+        fp_type hydro = hydrophobic(d_ij.data(), rec_lig_is_hydrophobic.data(), size);
+        fp_type hbond = hbonding(d_ij.data(), rec_lig_is_hbond.data(), size);
 
         return GAUSS1_COEFF * g1 + GAUSS2_COEFF * g2 + REPULSION_COEFF * rep + HYDROPHOBIC_COEFF * hydro + H_BOND_COEFF * hbond;
     }
@@ -113,8 +108,8 @@ namespace mudock {
 
         std::vector<fp_type>& dst_mtx,
         std::vector<fp_type>& rec_lig_atom_vdw_sum,     
-        std::vector<bool>& rec_lig_is_hbond, 
-        std::vector<bool>& rec_lig_is_hydrophobic   
+        std::vector<int>& rec_lig_is_hbond, 
+        std::vector<int>& rec_lig_is_hydrophobic   
     ){
 
         for(size_t proteinIdx = 0; proteinIdx < num_atoms_protein; proteinIdx++){
@@ -154,8 +149,8 @@ namespace mudock {
 
         std::vector<fp_type>& intra_dst_mtx,
         std::vector<fp_type>& intra_rec_lig_atom_vdw_sum,     
-        std::vector<bool>& intra_rec_lig_is_hbond, 
-        std::vector<bool>& intra_rec_lig_is_hydrophobic   
+        std::vector<int>& intra_rec_lig_is_hbond, 
+        std::vector<int>& intra_rec_lig_is_hydrophobic   
     ){
 
         for(size_t i = 0; i < num_interacting_pairs; i++){
@@ -211,13 +206,13 @@ namespace mudock {
 
         std::vector<fp_type> dst_mtx                  = std::vector<fp_type>();
         std::vector<fp_type> rec_lig_atom_vdw_sum     = std::vector<fp_type>();
-        std::vector<bool> rec_lig_is_hbond            = std::vector<bool>();
-        std::vector<bool> rec_lig_is_hydrophobic      = std::vector<bool>();
+        std::vector<int> rec_lig_is_hbond            = std::vector<int>();
+        std::vector<int> rec_lig_is_hydrophobic      = std::vector<int>();
 
         std::vector<fp_type> intra_dst_mtx                  = std::vector<fp_type>();
         std::vector<fp_type> intra_rec_lig_atom_vdw_sum     = std::vector<fp_type>();
-        std::vector<bool> intra_rec_lig_is_hbond            = std::vector<bool>();
-        std::vector<bool> intra_rec_lig_is_hydrophobic      = std::vector<bool>();
+        std::vector<int> intra_rec_lig_is_hbond            = std::vector<int>();
+        std::vector<int> intra_rec_lig_is_hydrophobic      = std::vector<int>();
 
         /// TODO: essere sicuri che tutti gli elementi siano diversi dall'idrogeno
 
@@ -275,7 +270,7 @@ namespace mudock {
         return score;
     }
 
-    std::pair<std::vector<int>, std::vector<int>> get_interactive_pairs(mudock::static_molecule& ligand){
+    std::pair<std::vector<int>, std::vector<int>> get_interactive_pairs(const mudock::static_molecule& ligand){
         
         std::pair<std::vector<int>, std::vector<int>> out;
 

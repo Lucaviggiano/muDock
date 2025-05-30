@@ -9,6 +9,7 @@ namespace mudock {
   inline void manage_cuda(const std::vector<std::string>&,
                           threadpool&,
                           const knobs,
+                          [[maybe_unused]] std::shared_ptr<dynamic_molecule>& protein,
                           [[maybe_unused]] std::shared_ptr<const grid_atom_mapper> grid_atom_maps,
                           [[maybe_unused]] std::shared_ptr<const grid_map> electro_map,
                           [[maybe_unused]] std::shared_ptr<const grid_map> desolv_map,

@@ -6,6 +6,7 @@
 #include <mudock/cuda_implementation/calc_energy.cuh>
 #include <mudock/cuda_implementation/cuda_check_error_macro.cuh>
 #include <mudock/cuda_implementation/mutate.cuh>
+#include <mudock/cuda_implementation/vina.cuh>
 #include <mudock/grid.hpp>
 #include <mudock/molecule/containers.hpp>
 #include <mudock/type_alias.hpp>
@@ -114,6 +115,13 @@ namespace mudock {
                                    const fp_type* __restrict__ ligand_Rii,
                                    const fp_type* __restrict__ ligand_epsij_hb,
                                    const fp_type* __restrict__ ligand_epsii,
+                                   const fp_type* __restrict__ ligand_vdw_radius,
+                                   const int* __restrict__ ligand_is_hbond_acceptor,
+                                   const int* __restrict__ ligand_is_hbond_donor,
+                                   const int* __restrict__ ligand_is_hydrophobic,
+                                   const int* __restrict__ interacting_pairs_first,
+                                   const int* __restrict__ interacting_pairs_second,
+                                   const int* __restrict__ ligand_num_interacting_pairs,
                                    const int* __restrict__ ligand_num_nonbonds,
                                    const int* __restrict__ ligand_nonbond_a1,
                                    const int* __restrict__ ligand_nonbond_a2,
@@ -127,6 +135,20 @@ namespace mudock {
                                    const int* __restrict__ atom_tex_indexes,
                                    const cudaTextureObject_t electro_texture,
                                    const cudaTextureObject_t desolv_texture,
+                                   const int num_atoms_protein,
+                                   const fp_type* __restrict__ protein_x,
+                                   const fp_type* __restrict__ protein_y,
+                                   const fp_type* __restrict__ protein_z,
+                                   const fp_type* __restrict__ p_vdw_radius,
+                                   const int* __restrict__ p_is_hbond_acceptor,
+                                   const int* __restrict__ p_is_hbond_donor,
+                                   const int* __restrict__ p_is_hydrophobic,
+                                   /// Vina buffers
+                                   fp_type* __restrict__ dst_mtx,
+                                   fp_type* __restrict__ atom_vdw_sum,
+                                   int* __restrict__ is_hbond,
+                                   int* __restrict__ is_hydrophobic,
+
                                    curandState* __restrict__ state,
                                    fp_type* __restrict__ ligand_scores,
                                    chromosome* __restrict__ best_chromosomes) {
@@ -138,6 +160,7 @@ namespace mudock {
     const int num_atoms    = ligand_num_atoms[ligand_id];
     const int num_nonbonds = ligand_num_nonbonds[ligand_id + 1] - ligand_num_nonbonds[ligand_id];
     const int num_rotamers = ligand_num_rotamers[ligand_id];
+    const int num_interacting_pairs = ligand_num_interacting_pairs[ligand_id];
 
     const fp_type* l_original_ligand_x = original_ligand_x + ligand_id * atom_stride;
     const fp_type* l_original_ligand_y = original_ligand_y + ligand_id * atom_stride;
@@ -153,6 +176,13 @@ namespace mudock {
     const fp_type* l_ligand_Rii        = ligand_Rii + ligand_id * atom_stride;
     const fp_type* l_ligand_epsij_hb   = ligand_epsij_hb + ligand_id * atom_stride;
     const fp_type* l_ligand_epsii      = ligand_epsii + ligand_id * atom_stride;
+    const fp_type* l_ligand_vdw_radius = ligand_vdw_radius + ligand_id * atom_stride;
+    const int* l_ligand_is_hbond_ac    = ligand_is_hbond_acceptor + ligand_id * atom_stride;
+    const int* l_ligand_is_hbond_dn    = ligand_is_hbond_donor + ligand_id * atom_stride;
+    const int* l_ligand_is_hydrophobic = ligand_is_hydrophobic + ligand_id * atom_stride;
+    const int* l_ip_first              = interacting_pairs_first + ligand_id * num_interacting_pairs;
+    const int* l_ip_second             = interacting_pairs_second + ligand_id * num_interacting_pairs;
+
     chromosome* l_chromosomes          = chromosomes + ligand_id * chromosome_stride;
     // Point to the next population buffer
     chromosome* l_next_chromosomes      = chromosomes + ligand_id * chromosome_stride + chromosome_number;
@@ -214,6 +244,42 @@ namespace mudock {
                                             num_rotamers,
                                             atom_stride,
                                             num_atoms);
+
+        #ifdef VINA
+
+        s_chromosome_scores[chromosome_index] = scoring_cuda(  
+                                                      /// Protein data
+                                                      num_atoms_protein,
+                                                      protein_x,
+                                                      protein_y,
+                                                      protein_z,
+                                                      p_is_hbond_acceptor,
+                                                      p_is_hbond_donor,
+                                                      p_is_hydrophobic,
+                                                      p_vdw_radius,
+                                              
+                                                      ///Ligand data
+                                                      num_atoms,
+                                                      l_scratch_ligand_x,
+                                                      l_scratch_ligand_y,
+                                                      l_scratch_ligand_z,
+                                                      l_ligand_is_hbond_ac,
+                                                      l_ligand_is_hbond_dn,
+                                                      l_ligand_is_hydrophobic,
+                                                      l_ligand_vdw_radius,
+                                                      num_rotamers,
+                                                      l_ip_first,
+                                                      l_ip_second,
+                                                      num_interacting_pairs,
+
+                                                      /// Buffers
+                                                      dst_mtx,
+                                                      atom_vdw_sum,
+                                                      is_hbond,
+                                                      is_hydrophobic
+                                                  );
+
+        #else
 
         // Calculate energy
         fp_type elect_total_trilinear = 0;
@@ -322,6 +388,8 @@ namespace mudock {
           const fp_type tors_free_energy        = num_rotamers * autodock_parameters::coeff_tors;
           s_chromosome_scores[chromosome_index] = total_trilinear_eintcal + tors_free_energy;
         }
+        /// End of score calc
+        #endif
       }
 
       // Generate the new population

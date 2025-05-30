@@ -47,10 +47,23 @@ namespace mudock {
   }
 
   device::device(const std::size_t gpu_id,
+                 std::shared_ptr<dynamic_molecule>& protein,
                  std::shared_ptr<const grid_atom_mapper>& grid_atom_maps,
                  std::shared_ptr<const grid_map>& electro_map,
-                 std::shared_ptr<const grid_map>& desolv_map)
-      : id(gpu_id), center_maps(electro_map.get()->center), stream(get_stream()), atom_texs(stream) {
+                 std::shared_ptr<const grid_map>& desolv_map) 
+    : id(gpu_id), 
+      stream(get_stream()), 
+      center_maps(electro_map.get()->center), 
+      num_atoms(protein->num_atoms()), 
+      protein_x(stream),
+      protein_y(stream),
+      protein_z(stream),
+      p_vdw_radius(stream),
+      p_is_hbond_acceptor(stream),
+      p_is_hbond_donor(stream),
+      p_is_hydrophobic(stream),
+      atom_texs(stream) 
+    {
     // TODO move this part into the cuda_worker -> once per GPU
     // TODO move this only to one for Device, DO NOT repeat the memory loading per each thread
     // Allocate grid maps
@@ -72,6 +85,45 @@ namespace mudock {
       ++index;
     }
     atom_texs.copy_host2device();
+
+    /// Initialize Vina protein data
+    protein_x.alloc(num_atoms);
+    protein_y.alloc(num_atoms);
+    protein_z.alloc(num_atoms);
+    p_vdw_radius.alloc(num_atoms);
+    p_is_hbond_acceptor.alloc(num_atoms);
+    p_is_hbond_donor.alloc(num_atoms);
+    p_is_hydrophobic.alloc(num_atoms);
+
+    std::memcpy((void *) (protein_x.host_pointer()),
+                  protein.get()->get_x().data(),
+                  num_atoms * sizeof(fp_type));
+    std::memcpy((void *) (protein_y.host_pointer()),
+                  protein.get()->get_y().data(),
+                  num_atoms * sizeof(fp_type));             
+    std::memcpy((void *) (protein_z.host_pointer()),
+                  protein.get()->get_z().data(),
+                  num_atoms * sizeof(fp_type)); 
+    std::memcpy((void *) (p_vdw_radius.host_pointer()),
+                  protein.get()->get_vdw_radius().data(),
+                  num_atoms * sizeof(fp_type)); 
+    std::memcpy((void *) (p_is_hbond_acceptor.host_pointer()),
+                  protein.get()->get_is_hbond_acceptor().data(),
+                  num_atoms * sizeof(int));  
+    std::memcpy((void *) (p_is_hbond_donor.host_pointer()),
+                  protein.get()->get_is_hbond_donor().data(),
+                  num_atoms * sizeof(int));
+    std::memcpy((void *) (p_is_hydrophobic.host_pointer()),
+                  protein.get()->get_is_hydrophobic().data(),
+                  num_atoms * sizeof(int));
+
+    protein_x.copy_host2device();
+    protein_y.copy_host2device();
+    protein_z.copy_host2device();
+    p_vdw_radius.copy_host2device();
+    p_is_hbond_acceptor.copy_host2device();
+    p_is_hbond_donor.copy_host2device();
+    p_is_hydrophobic.copy_host2device();
 
     // Grid spacing fixed to 0.5 Angstrom
     setup_constant_memory(minimum, maximum, center);

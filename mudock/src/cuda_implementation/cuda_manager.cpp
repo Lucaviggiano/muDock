@@ -13,6 +13,7 @@ namespace mudock {
   void manage_cuda(const std::vector<std::string>& configurations,
                    threadpool& pool,
                    const knobs knobs,
+                   std::shared_ptr<dynamic_molecule>& protein,
                    std::shared_ptr<const grid_atom_mapper>& grid_atom_maps,
                    std::shared_ptr<const grid_map>& electro_map,
                    std::shared_ptr<const grid_map>& desolv_map,
@@ -66,7 +67,7 @@ namespace mudock {
         // we spawn two workers for each GPU to implement the double buffer
         // TODO create e locking mechanism for the device
         // As to make the bucketizer more effective
-        const auto dev = std::make_shared<device>(id, grid_atom_maps, electro_map, desolv_map);
+        const auto dev = std::make_shared<device>(id, protein, grid_atom_maps, electro_map, desolv_map);
 
         pool.add_worker<mudock::cuda_worker>(knobs, input_molecules, output_molecules, rob, dev);
         pool.add_worker<mudock::cuda_worker>(knobs, input_molecules, output_molecules, rob, dev);

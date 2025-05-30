@@ -255,7 +255,7 @@ namespace mudock {
     atoms_neighbors.resize(atoms_size * max_neighbors);
     
     /// For each atom, we need to remove the index of the removed atom from its neighbors
-    for (int i = 0; i < num_atoms; ++i) {
+    for (int i = 0; i < atoms_size; ++i) {
       int* neighbors = &atoms_neighbors[i * max_neighbors];
       int write_pos = 0;
       for (int j = 0; j < max_neighbors; ++j) {
