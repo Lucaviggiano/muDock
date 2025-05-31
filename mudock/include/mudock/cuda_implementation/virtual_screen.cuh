@@ -25,7 +25,7 @@ namespace mudock {
     // TODO some of these can be placed into shared memory
     cuda_wrapper<std::vector, fp_type> original_ligand_x, original_ligand_y, original_ligand_z,
         scratch_ligand_x, scratch_ligand_y, scratch_ligand_z, ligand_vol, ligand_solpar, ligand_charge,
-        ligand_Rij_hb, ligand_Rii, ligand_epsij_hb, ligand_epsii, ligand_vdw_radius, vina_buf_dst_mtx, vina_buf_vdw_mtx;
+        ligand_Rij_hb, ligand_Rii, ligand_epsij_hb, ligand_epsii, ligand_vdw_radius, vina_buf_dst_mtx;
     cuda_wrapper<std::vector, int> ligand_num_hbond, ligand_num_atoms, ligand_num_rotamers, 
         ligand_is_hbond_acceptor, ligand_is_hbond_donor, ligand_is_hydrophobic, interacting_pairs_first, 
         interacting_pairs_second, ligand_tot_ip, vina_buf_is_hb_mtx, vina_buf_is_hy_mtx;

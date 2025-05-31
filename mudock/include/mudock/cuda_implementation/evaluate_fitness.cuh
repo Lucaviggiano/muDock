@@ -145,7 +145,6 @@ namespace mudock {
                                    const int* __restrict__ p_is_hydrophobic,
                                    /// Vina buffers
                                    fp_type* __restrict__ dst_mtx,
-                                   fp_type* __restrict__ atom_vdw_sum,
                                    int* __restrict__ is_hbond,
                                    int* __restrict__ is_hydrophobic,
 
@@ -182,6 +181,10 @@ namespace mudock {
     const int* l_ligand_is_hydrophobic = ligand_is_hydrophobic + ligand_id * atom_stride;
     const int* l_ip_first              = interacting_pairs_first + ligand_id * num_interacting_pairs;
     const int* l_ip_second             = interacting_pairs_second + ligand_id * num_interacting_pairs;
+
+    fp_type* l_dst_mtx                   = dst_mtx + ligand_id * num_atoms_protein * num_atoms; 
+    int* l_is_hbond                      = is_hbond + ligand_id * num_atoms_protein * num_atoms;
+    int* l_is_hydrophobic                = is_hydrophobic + ligand_id * num_atoms_protein * num_atoms;
 
     chromosome* l_chromosomes          = chromosomes + ligand_id * chromosome_stride;
     // Point to the next population buffer
@@ -247,37 +250,52 @@ namespace mudock {
 
         #ifdef VINA
 
-        s_chromosome_scores[chromosome_index] = scoring_cuda(  
-                                                      /// Protein data
-                                                      num_atoms_protein,
-                                                      protein_x,
-                                                      protein_y,
-                                                      protein_z,
-                                                      p_is_hbond_acceptor,
-                                                      p_is_hbond_donor,
-                                                      p_is_hydrophobic,
-                                                      p_vdw_radius,
-                                              
-                                                      ///Ligand data
-                                                      num_atoms,
-                                                      l_scratch_ligand_x,
-                                                      l_scratch_ligand_y,
-                                                      l_scratch_ligand_z,
-                                                      l_ligand_is_hbond_ac,
-                                                      l_ligand_is_hbond_dn,
-                                                      l_ligand_is_hydrophobic,
-                                                      l_ligand_vdw_radius,
-                                                      num_rotamers,
-                                                      l_ip_first,
-                                                      l_ip_second,
-                                                      num_interacting_pairs,
+        fp_type score = scoring_cuda(  
+                                      /// Protein data
+                                      num_atoms_protein,
+                                      protein_x,
+                                      protein_y,
+                                      protein_z,
+                                      p_is_hbond_acceptor,
+                                      p_is_hbond_donor,
+                                      p_is_hydrophobic,
+                                      p_vdw_radius,
+                              
+                                      ///Ligand data
+                                      num_atoms,
+                                      l_original_ligand_x,
+                                      l_original_ligand_y,
+                                      l_original_ligand_z,
+                                      // l_scratch_ligand_x,
+                                      // l_scratch_ligand_y,
+                                      // l_scratch_ligand_z,
+                                      l_ligand_is_hbond_ac,
+                                      l_ligand_is_hbond_dn,
+                                      l_ligand_is_hydrophobic,
+                                      l_ligand_vdw_radius,
+                                      num_rotamers,
+                                      l_ip_first,
+                                      l_ip_second,
+                                      num_interacting_pairs,
 
-                                                      /// Buffers
-                                                      dst_mtx,
-                                                      atom_vdw_sum,
-                                                      is_hbond,
-                                                      is_hydrophobic
-                                                  );
+                                      /// Buffers
+                                      l_dst_mtx,
+                                      l_is_hbond,
+                                      l_is_hydrophobic
+                                  );
+
+        __syncwarp();
+
+        // Perform a tree reduction using __shfl_down_sync
+#pragma unroll
+        for (int offset = BLOCK_SIZE / 2; offset > 0; offset /= 2) {
+          score += __shfl_down_sync(0xffffffff, score, offset);
+        }
+
+        if (local_thread_id == 0) {
+          printf("Vina score: %f\n", score);
+          s_chromosome_scores[chromosome_index] = score;
+        }
 
         #else
 

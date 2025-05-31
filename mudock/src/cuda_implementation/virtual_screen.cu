@@ -16,7 +16,7 @@
 #include <span>
 
 #define MAX_INTERACTING_PAIRS 1000
-#define TRANSFORM 1
+#define TRANSFORM 0
 
 namespace mudock {
   // TODO this can be removed, only need the nbmatrix
@@ -41,7 +41,6 @@ namespace mudock {
         ligand_epsii(stream),
         ligand_vdw_radius(stream),
         vina_buf_dst_mtx(stream),
-        vina_buf_vdw_mtx(stream),
         ligand_num_hbond(stream),
         ligand_num_atoms(stream),
         ligand_num_rotamers(stream),
@@ -95,7 +94,6 @@ namespace mudock {
     ligand_vdw_radius.alloc(tot_atoms_in_batch);
     /// TODO: chiedi se va bene così
     vina_buf_dst_mtx.alloc(tot_atoms_in_batch * dev.get()->num_atoms);
-    vina_buf_vdw_mtx.alloc(tot_atoms_in_batch * dev.get()->num_atoms);
     // TODO check if it is required
     ligand_num_hbond.alloc(tot_atoms_in_batch);
     ligand_num_atoms.alloc(batch_ligands);
@@ -289,6 +287,9 @@ namespace mudock {
     index_nonbonds.copy_host2device();
     nonbond_a1.copy_host2device();
     nonbond_a2.copy_host2device();
+    vina_buf_dst_mtx.copy_host2device();
+    vina_buf_is_hb_mtx.copy_host2device();
+    vina_buf_is_hy_mtx.copy_host2device();
 
     // Setup cuda random
     // A state for each thread
@@ -363,7 +364,6 @@ namespace mudock {
                                                                   dev.get()->p_is_hbond_donor.dev_pointer(),
                                                                   dev.get()->p_is_hydrophobic.dev_pointer(),
                                                                   vina_buf_dst_mtx.dev_pointer(),
-                                                                  vina_buf_vdw_mtx.dev_pointer(),
                                                                   vina_buf_is_hb_mtx.dev_pointer(),
                                                                   vina_buf_is_hy_mtx.dev_pointer(),
                                                                   curand_states.dev_pointer(),
