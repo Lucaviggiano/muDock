@@ -4,6 +4,10 @@
 #include <thrust/device_vector.h>
 #include <thrust/device_ptr.h>
 
+/// -10.219824: risultato finale variazione solo di +0.000009       <- with parallelisation
+/// Score inter -15.313681, Score intra -1.478089, Score -10.219815 <- with no parallelisation
+/// Score inter -15.313679, Score intra -1.478089, Score -10.219813 <- real
+
 namespace mudock {
 
     __device__ static constexpr fp_type GAUSS1_COEFF_CUDA{- 0.035579};
@@ -13,7 +17,7 @@ namespace mudock {
     __device__ static constexpr fp_type H_BOND_COEFF_CUDA{- 0.587439};
     __device__ static constexpr fp_type NROT_COEFF_CUDA{0.05846};
 
-    __device__ inline fp_type distance(int x, int y, int z) {
+    __device__ inline fp_type distance(fp_type x, fp_type y, fp_type z) {
         return sqrt( x*x + y*y + z*z );
     }
 
@@ -61,7 +65,9 @@ namespace mudock {
         fp_type hydro = 0;
         fp_type hbond = 0;
 
-        for( size_t idx = 0; idx < size; idx++) {
+        size_t idx;
+        for( size_t i = 0; i < size; i++) {
+            idx = threadIdx.x + (i * blockDim.x);
             g1  += gauss1(idx, dst_mtx, size);
             g2  += gauss2(idx, dst_mtx, size);
             rep += repulsion(idx, dst_mtx, size);
@@ -99,23 +105,25 @@ namespace mudock {
         int* __restrict__ is_hydrophobic
     ){
 
-        size_t idx = 0;
+        size_t idx = 0, thread_idx = 0;
         fp_type vdw_sum;
-        for(size_t proteinIdx = 0; proteinIdx < num_atoms_protein; proteinIdx++){
+        for (size_t proteinIdx = threadIdx.x; proteinIdx < num_atoms_protein; proteinIdx += blockDim.x) {
             for(size_t ligandIdx = 0; ligandIdx < num_atoms_ligand; ligandIdx++){
-                fp_type dst = sqrt(
-                    pow(protein_x[proteinIdx] - ligand_x[ligandIdx], 2) +
-                    pow(protein_y[proteinIdx] - ligand_y[ligandIdx], 2) +
-                    pow(protein_z[proteinIdx] - ligand_z[ligandIdx], 2)
+                fp_type dst = distance(
+                    (protein_x[proteinIdx] - ligand_x[ligandIdx]),
+                    (protein_y[proteinIdx] - ligand_y[ligandIdx]),
+                    (protein_z[proteinIdx] - ligand_z[ligandIdx])
                 );
 
                 if(dst > 8) continue;
 
+                thread_idx = threadIdx.x + (idx * blockDim.x);
+
                 vdw_sum = p_vdw_radius[proteinIdx] + l_vdw_radius[ligandIdx];
 
-                dst_mtx[idx] = dst - vdw_sum;
-                is_hbond[idx] = (p_is_hbond_acceptor[proteinIdx] && l_is_hbond_donor[ligandIdx]) || (l_is_hbond_acceptor[ligandIdx] && p_is_hbond_donor[proteinIdx]);
-                is_hydrophobic[idx] = p_is_hydrophobic[proteinIdx] && l_is_hydrophobic[ligandIdx];
+                dst_mtx[thread_idx] = dst - vdw_sum;
+                is_hbond[thread_idx] = (p_is_hbond_acceptor[proteinIdx] && l_is_hbond_donor[ligandIdx]) || (l_is_hbond_acceptor[ligandIdx] && p_is_hbond_donor[proteinIdx]);
+                is_hydrophobic[thread_idx] = p_is_hydrophobic[proteinIdx] && l_is_hydrophobic[ligandIdx];
                 idx++;
             }
         }
@@ -140,25 +148,31 @@ namespace mudock {
         int* __restrict__ intra_is_hydrophobic
     ){
 
-        size_t idx = 0;
+        size_t idx = 0, thread_idx = 0;
         fp_type vdw_sum;
-        for(size_t i = 0; i < num_interacting_pairs; i++){
+        for(size_t i = threadIdx.x; i < num_interacting_pairs; i += blockDim.x) {
             int atom_1 = interacting_pairs_first[i];
             int atom_2 = interacting_pairs_second[i];
 
-            fp_type dst = sqrt(
-                pow(ligand_x[atom_1] - ligand_x[atom_2], 2) +
-                pow(ligand_y[atom_1] - ligand_y[atom_2], 2) +
-                pow(ligand_z[atom_1] - ligand_z[atom_2], 2)
+            fp_type dst = distance(
+                (ligand_x[atom_1] - ligand_x[atom_2]),
+                (ligand_y[atom_1] - ligand_y[atom_2]),
+                (ligand_z[atom_1] - ligand_z[atom_2])
             );
 
             if(dst > 8) continue;
 
+            /// TODO: come te hai pensato di salvare i dati nel buffer non va bene perchè non sono adiacenti
+            /// questo causa un accesso alla memoria non contiguo e quindi un accesso lento, cerca di trovare
+            /// un modo per avere un idx condiviso tra i thread
+
+            thread_idx = threadIdx.x + (idx * blockDim.x);
+
             vdw_sum = l_vdw_radius[atom_1] + l_vdw_radius[atom_2];
             
-            intra_dst_mtx[idx] = dst - vdw_sum;
-            intra_is_hbond[idx] = (l_is_hbond_acceptor[atom_1] && l_is_hbond_donor[atom_2]) || (l_is_hbond_acceptor[atom_2] && l_is_hbond_donor[atom_1]);
-            intra_is_hydrophobic[idx] = l_is_hydrophobic[atom_1] && l_is_hydrophobic[atom_2];
+            intra_dst_mtx[thread_idx] = dst - vdw_sum;
+            intra_is_hbond[thread_idx] = (l_is_hbond_acceptor[atom_1] && l_is_hbond_donor[atom_2]) || (l_is_hbond_acceptor[atom_2] && l_is_hbond_donor[atom_1]);
+            intra_is_hydrophobic[thread_idx] = l_is_hydrophobic[atom_1] && l_is_hydrophobic[atom_2];
             idx++;
         }
         return idx;
@@ -247,7 +261,7 @@ namespace mudock {
         
         // printf("dst_mtx len %ld\n", dst_mtx.size());
         // printf("intra_dst_mtx len %ld\n", intra_dst_mtx.size());
-        printf("Score inter %f, Score intra %f, Score %f\n", inter_score, intra_score, score); 
+        // printf("Score inter %f, Score intra %f, Score %f\n", inter_score, intra_score, score); 
         
         return score;
     }

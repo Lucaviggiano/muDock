@@ -248,6 +248,8 @@ namespace mudock {
                                             atom_stride,
                                             num_atoms);
 
+        __syncwarp();
+
         #ifdef VINA
 
         fp_type score = scoring_cuda(  
@@ -263,12 +265,12 @@ namespace mudock {
                               
                                       ///Ligand data
                                       num_atoms,
-                                      l_original_ligand_x,
-                                      l_original_ligand_y,
-                                      l_original_ligand_z,
-                                      // l_scratch_ligand_x,
-                                      // l_scratch_ligand_y,
-                                      // l_scratch_ligand_z,
+                                      // l_original_ligand_x,
+                                      // l_original_ligand_y,
+                                      // l_original_ligand_z,
+                                      l_scratch_ligand_x,
+                                      l_scratch_ligand_y,
+                                      l_scratch_ligand_z,
                                       l_ligand_is_hbond_ac,
                                       l_ligand_is_hbond_dn,
                                       l_ligand_is_hydrophobic,
@@ -293,8 +295,8 @@ namespace mudock {
         }
 
         if (local_thread_id == 0) {
-          printf("Vina score: %f\n", score);
           s_chromosome_scores[chromosome_index] = score;
+          printf("Genreation %d done!\n", generation);
         }
 
         #else

@@ -16,7 +16,7 @@
 #include <span>
 
 #define MAX_INTERACTING_PAIRS 1000
-#define TRANSFORM 0
+#define TRANSFORM 1
 
 namespace mudock {
   // TODO this can be removed, only need the nbmatrix
@@ -93,7 +93,8 @@ namespace mudock {
     ligand_epsii.alloc(tot_atoms_in_batch);
     ligand_vdw_radius.alloc(tot_atoms_in_batch);
     /// TODO: chiedi se va bene così
-    vina_buf_dst_mtx.alloc(tot_atoms_in_batch * dev.get()->num_atoms);
+    vina_buf_dst_mtx.alloc(tot_atoms_in_batch * dev.get()->num_atoms, 0);
+    printf("Size buffer: %zu\n", tot_atoms_in_batch * dev.get()->num_atoms);
     // TODO check if it is required
     ligand_num_hbond.alloc(tot_atoms_in_batch);
     ligand_num_atoms.alloc(batch_ligands);
@@ -105,8 +106,8 @@ namespace mudock {
     interacting_pairs_first.alloc(batch_ligands * MAX_INTERACTING_PAIRS);
     interacting_pairs_second.alloc(batch_ligands * MAX_INTERACTING_PAIRS);
     ligand_tot_ip.alloc(batch_ligands);
-    vina_buf_is_hb_mtx.alloc(tot_atoms_in_batch * dev.get()->num_atoms);
-    vina_buf_is_hy_mtx.alloc(tot_atoms_in_batch * dev.get()->num_atoms);
+    vina_buf_is_hb_mtx.alloc(tot_atoms_in_batch * dev.get()->num_atoms, 0);
+    vina_buf_is_hy_mtx.alloc(tot_atoms_in_batch * dev.get()->num_atoms, 0);
     ligand_scores.alloc(batch_ligands);
     best_chromosomes.alloc(batch_ligands);
     // Bonds

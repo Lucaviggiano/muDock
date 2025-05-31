@@ -4,4 +4,4 @@ build*/
 .gdb_history
 *.o
 *.a
-vina_testing/
+vina_nsys/
