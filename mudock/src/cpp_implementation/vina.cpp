@@ -16,71 +16,60 @@
 
 namespace mudock {
 
-    inline fp_type gauss1(const fp_type* __restrict__ dst_mtx, int size) {
+    inline fp_type distance(fp_type x, fp_type y, fp_type z) {
+        return sqrt( x*x + y*y + z*z );
+    }
+
+    inline fp_type gauss1(const size_t idx, const fp_type* __restrict__ dst_mtx) {
         fp_type gauss1 = 0;
-        for( size_t i = 0; i < size; i++) {
-            if(dst_mtx[i] != 0) gauss1 += exp(- pow(dst_mtx[i] / 0.5, 2));
-        }
+        if(dst_mtx[idx] != 0) gauss1 = exp(- pow(dst_mtx[idx] / 0.5, 2));
         return gauss1;
     }
 
-    inline fp_type gauss2(const fp_type* __restrict__ dst_mtx, int size) {
+    inline fp_type gauss2(const size_t idx, const fp_type* __restrict__ dst_mtx) {
         fp_type gauss2 = 0;
-        for( size_t i = 0; i < size; i++) {
-            if(dst_mtx[i] != 0) gauss2 += exp(- pow((dst_mtx[i] - 3) / 2, 2));
-        }
+        if(dst_mtx[idx] != 0) gauss2 = exp(- pow((dst_mtx[idx] - 3) / 2, 2));
         return gauss2;
     }
 
-    inline fp_type repulsion(const fp_type* __restrict__ dst_mtx, int size) {
-        fp_type repulsion = 0;
-        for( size_t i = 0; i < size; i++) {
-            repulsion += pow((dst_mtx[i] < 0) * dst_mtx[i], 2);
-        }
-        return repulsion;
+    inline fp_type repulsion(const size_t idx, const fp_type* __restrict__ dst_mtx) {
+        return pow((dst_mtx[idx] < 0) * dst_mtx[idx], 2);
     }
 
-    inline fp_type hydrophobic(const fp_type* __restrict__ dst_mtx, const int* __restrict__ rec_lig_is_hydrophobic, int size) {
-        fp_type hydrophobic = 0;
-        for( size_t i = 0; i < size; i++) {
-            bool hydro_1 = rec_lig_is_hydrophobic[i] && (dst_mtx[i] <= 0.5);
-            bool hydro_2_cond = rec_lig_is_hydrophobic[i] && (dst_mtx[i] > 0.5) && (dst_mtx[i] < 1.5);
-            fp_type hydro_2 = 1.5 * hydro_2_cond - hydro_2_cond * dst_mtx[i];
-            hydrophobic += hydro_1 + hydro_2;
-        }
-        return hydrophobic;
+    inline fp_type hydrophobic(const size_t idx, const fp_type* __restrict__ dst_mtx, const int* __restrict__ rec_lig_is_hydrophobic) {
+        bool hydro_1 = rec_lig_is_hydrophobic[idx] && (dst_mtx[idx] <= 0.5);
+        bool hydro_2_cond = rec_lig_is_hydrophobic[idx] && (dst_mtx[idx] > 0.5) && (dst_mtx[idx] < 1.5);
+        fp_type hydro_2 = 1.5 * hydro_2_cond - hydro_2_cond * dst_mtx[idx];
+        return hydro_1 + hydro_2;
     }
 
-    inline fp_type hbonding(const fp_type* __restrict__ dst_mtx, const int* __restrict__ rec_lig_is_hb, int size) {
-        fp_type h_bonding = 0;
-        for( size_t i = 0; i < size; i++) {
-            bool h_bond_1 = rec_lig_is_hb[i] && (dst_mtx[i] <= -0.7);
-            bool h_bond_2_cond = rec_lig_is_hb[i] && (dst_mtx[i] < 0) && (dst_mtx[i] > -0.7);
-            fp_type h_bond_2 = h_bond_2_cond * (- dst_mtx[i]) / 0.7;
-            h_bonding += h_bond_1 + h_bond_2;
-        }
-        return h_bonding;
+    inline fp_type hbonding(const size_t idx, const fp_type* __restrict__ dst_mtx, const int* __restrict__ rec_lig_is_hb) {
+        bool h_bond_1 = rec_lig_is_hb[idx] && (dst_mtx[idx] <= -0.7);
+        bool h_bond_2_cond = rec_lig_is_hb[idx] && (dst_mtx[idx] < 0) && (dst_mtx[idx] > -0.7);
+        fp_type h_bond_2 = h_bond_2_cond * (- dst_mtx[idx]) / 0.7;
+        return h_bond_1 + h_bond_2;
     }
 
     fp_type score_function(
-        const std::vector<fp_type> dst_mtx, 
-        const std::vector<fp_type> rec_lig_atom_vdw_sum,
-        const std::vector<int> rec_lig_is_hydrophobic,
-        const std::vector<int> rec_lig_is_hbond
+        const fp_type* __restrict__ dst_mtx, 
+        const int* __restrict__ ij_is_hydrophobic,
+        const int* __restrict__ ij_is_hbond,
+        const size_t size
     ) {
 
-        const size_t size = dst_mtx.size();
-        std::vector<fp_type> d_ij = std::vector<fp_type>(size, 0);
+        fp_type g1 = 0; 
+        fp_type g2 = 0; 
+        fp_type rep = 0;
+        fp_type hydro = 0;
+        fp_type hbond = 0;
 
-        for( size_t i = 0; i < size; i++) {
-            d_ij[i] = dst_mtx[i] - rec_lig_atom_vdw_sum[i];
+        for(size_t i = 0; i < size; i++){
+            g1  += gauss1(i, dst_mtx);
+            g2  += gauss2(i, dst_mtx);
+            rep += repulsion(i, dst_mtx); 
+            hydro += hydrophobic(i, dst_mtx, ij_is_hydrophobic);
+            hbond += hbonding(i, dst_mtx, ij_is_hbond);
         }
-
-        fp_type g1  = gauss1(d_ij.data(), size);
-        fp_type g2  = gauss2(d_ij.data(), size);
-        fp_type rep = repulsion(d_ij.data(), size); 
-        fp_type hydro = hydrophobic(d_ij.data(), rec_lig_is_hydrophobic.data(), size);
-        fp_type hbond = hbonding(d_ij.data(), rec_lig_is_hbond.data(), size);
 
         return GAUSS1_COEFF * g1 + GAUSS2_COEFF * g2 + REPULSION_COEFF * rep + HYDROPHOBIC_COEFF * hydro + H_BOND_COEFF * hbond;
     }
@@ -107,28 +96,27 @@ namespace mudock {
         const fp_type* __restrict__ l_vdw_radius,
 
         std::vector<fp_type>& dst_mtx,
-        std::vector<fp_type>& rec_lig_atom_vdw_sum,     
         std::vector<int>& rec_lig_is_hbond, 
         std::vector<int>& rec_lig_is_hydrophobic   
     ){
 
         for(size_t proteinIdx = 0; proteinIdx < num_atoms_protein; proteinIdx++){
             for(size_t ligandIdx = 0; ligandIdx < num_atoms_ligand; ligandIdx++){
-                fp_type dst = sqrt(
-                    pow(protein_x[proteinIdx] - ligand_x[ligandIdx], 2) +
-                    pow(protein_y[proteinIdx] - ligand_y[ligandIdx], 2) +
-                    pow(protein_z[proteinIdx] - ligand_z[ligandIdx], 2)
+                fp_type dst = distance(
+                    protein_x[proteinIdx] - ligand_x[ligandIdx],
+                    protein_y[proteinIdx] - ligand_y[ligandIdx],
+                    protein_z[proteinIdx] - ligand_z[ligandIdx]
                 );
 
                 if(dst > 8) continue;
-                dst_mtx.emplace_back(dst);
-                rec_lig_atom_vdw_sum.emplace_back(
-                    p_vdw_radius[proteinIdx] + l_vdw_radius[ligandIdx]
-                );
-                rec_lig_is_hbond.emplace_back(
+
+                dst -= p_vdw_radius[proteinIdx] + l_vdw_radius[ligandIdx];
+
+                dst_mtx.push_back(dst);
+                rec_lig_is_hbond.push_back(
                     (p_is_hbond_acceptor[proteinIdx] && l_is_hbond_donor[ligandIdx]) || (l_is_hbond_acceptor[ligandIdx] && p_is_hbond_donor[proteinIdx])
                 );
-                rec_lig_is_hydrophobic.emplace_back(
+                rec_lig_is_hydrophobic.push_back(
                     p_is_hydrophobic[proteinIdx] && l_is_hydrophobic[ligandIdx]
                 );
             }
@@ -148,7 +136,6 @@ namespace mudock {
         const size_t num_interacting_pairs,
 
         std::vector<fp_type>& intra_dst_mtx,
-        std::vector<fp_type>& intra_rec_lig_atom_vdw_sum,     
         std::vector<int>& intra_rec_lig_is_hbond, 
         std::vector<int>& intra_rec_lig_is_hydrophobic   
     ){
@@ -157,18 +144,17 @@ namespace mudock {
             int atom_1 = interacting_pairs_first[i];
             int atom_2 = interacting_pairs_second[i];
 
-            fp_type dst = sqrt(
-                pow(ligand_x[atom_1] - ligand_x[atom_2], 2) +
-                pow(ligand_y[atom_1] - ligand_y[atom_2], 2) +
-                pow(ligand_z[atom_1] - ligand_z[atom_2], 2)
+            fp_type dst = distance(
+                ligand_x[atom_1] - ligand_x[atom_2],
+                ligand_y[atom_1] - ligand_y[atom_2],
+                ligand_z[atom_1] - ligand_z[atom_2]
             );
 
             if(dst > 8) continue;
             
+            dst -= l_vdw_radius[atom_1] + l_vdw_radius[atom_2];
+
             intra_dst_mtx.push_back(dst);
-            intra_rec_lig_atom_vdw_sum.push_back(
-                l_vdw_radius[atom_1] + l_vdw_radius[atom_2]
-            );
             intra_rec_lig_is_hbond.push_back(
                 (l_is_hbond_acceptor[atom_1] && l_is_hbond_donor[atom_2]) || (l_is_hbond_acceptor[atom_2] && l_is_hbond_donor[atom_1])
             );
@@ -204,17 +190,11 @@ namespace mudock {
         const size_t num_interacting_pairs
     ){
 
-        std::vector<fp_type> dst_mtx                  = std::vector<fp_type>();
-        std::vector<fp_type> rec_lig_atom_vdw_sum     = std::vector<fp_type>();
-        std::vector<int> rec_lig_is_hbond            = std::vector<int>();
-        std::vector<int> rec_lig_is_hydrophobic      = std::vector<int>();
-
-        std::vector<fp_type> intra_dst_mtx                  = std::vector<fp_type>();
-        std::vector<fp_type> intra_rec_lig_atom_vdw_sum     = std::vector<fp_type>();
-        std::vector<int> intra_rec_lig_is_hbond            = std::vector<int>();
-        std::vector<int> intra_rec_lig_is_hydrophobic      = std::vector<int>();
-
-        /// TODO: essere sicuri che tutti gli elementi siano diversi dall'idrogeno
+        /// TODO: be sure all the atoms passed are not H
+        
+        std::vector<fp_type> dst_mtx                    = std::vector<fp_type>();
+        std::vector<int> rec_lig_is_hbond               = std::vector<int>();
+        std::vector<int> rec_lig_is_hydrophobic         = std::vector<int>();
 
         parse_data(
             num_atoms_protein,
@@ -236,10 +216,15 @@ namespace mudock {
             l_vdw_radius,
 
             dst_mtx, 
-            rec_lig_atom_vdw_sum,     
             rec_lig_is_hbond, 
             rec_lig_is_hydrophobic
         );
+        
+        fp_type inter_score = score_function(dst_mtx.data(), rec_lig_is_hydrophobic.data(), rec_lig_is_hbond.data(), dst_mtx.size());
+
+        std::vector<fp_type> intra_dst_mtx                  = std::vector<fp_type>();
+        std::vector<int> intra_rec_lig_is_hbond             = std::vector<int>();
+        std::vector<int> intra_rec_lig_is_hydrophobic       = std::vector<int>();
 
         parse_intra_data(
             ligand_x,
@@ -254,13 +239,11 @@ namespace mudock {
             num_interacting_pairs,
 
             intra_dst_mtx,
-            intra_rec_lig_atom_vdw_sum,     
             intra_rec_lig_is_hbond, 
             intra_rec_lig_is_hydrophobic   
         );
 
-        fp_type intra_score = score_function(intra_dst_mtx, intra_rec_lig_atom_vdw_sum, intra_rec_lig_is_hydrophobic, intra_rec_lig_is_hbond);
-        fp_type inter_score = score_function(dst_mtx, rec_lig_atom_vdw_sum, rec_lig_is_hydrophobic, rec_lig_is_hbond);
+        fp_type intra_score = score_function(intra_dst_mtx.data(), intra_rec_lig_is_hydrophobic.data(), intra_rec_lig_is_hbond.data(), intra_dst_mtx.size());
         fp_type score = (inter_score + intra_score) / ( 1 + NROT_COEFF * active_torsions);
 
         // printf("dst_mtx len %ld\n", dst_mtx.size());

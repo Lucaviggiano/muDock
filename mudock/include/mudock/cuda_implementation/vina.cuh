@@ -132,7 +132,7 @@ namespace mudock {
 
     __device__ inline void parse_intra_data(
         const fp_type* __restrict__ ligand_x,
-        const fp_type* __restrict__ ligand_y,proteinIdx
+        const fp_type* __restrict__ ligand_y,
         const fp_type* __restrict__ ligand_z,
         const int* __restrict__ l_is_hbond_acceptor,
         const int* __restrict__ l_is_hbond_donor,
@@ -247,8 +247,7 @@ namespace mudock {
             dst_mtx,
             is_hbond, 
             is_hydrophobic
-        );ntra_is_hydrophobic[i] = -1; /// Sentinel value. No interaction.
-    }
+        );
 
         mtx_size = num_interacting_pairs;
         fp_type intra_score = score_function(dst_mtx, is_hydrophobic, is_hbond, mtx_size);
