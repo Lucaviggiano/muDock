@@ -290,13 +290,16 @@ namespace mudock {
 
         // Perform a tree reduction using __shfl_down_sync
 #pragma unroll
+        
+        if (local_thread_id == 0) {
+          printf("Chromosome %d done of ligand %d.\n Collecting data...\n", chromosome_index, ligand_id);
+        }
         for (int offset = BLOCK_SIZE / 2; offset > 0; offset /= 2) {
           score += __shfl_down_sync(0xffffffff, score, offset);
         }
 
         if (local_thread_id == 0) {
           s_chromosome_scores[chromosome_index] = score;
-          printf("Genreation %d done!\n", generation);
         }
 
         #else
@@ -410,6 +413,10 @@ namespace mudock {
         }
         /// End of score calc
         #endif
+      }
+
+      if (local_thread_id == 0) {
+        printf("Genreation %d done!\n", generation);
       }
 
       // Generate the new population

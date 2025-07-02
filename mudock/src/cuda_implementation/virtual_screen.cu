@@ -15,8 +15,7 @@
 #include <mudock/utils.hpp>
 #include <span>
 
-#define MAX_INTERACTING_PAIRS 1000
-#define TRANSFORM 1
+#define MAX_INTERACTING_PAIRS 5000
 
 namespace mudock {
   // TODO this can be removed, only need the nbmatrix

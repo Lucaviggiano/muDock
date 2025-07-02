@@ -154,6 +154,10 @@ namespace mudock {
 
     #endif
 
+    const fp_type* x;
+    const fp_type* y;
+    const fp_type* z;
+
     for (int generation = 0; generation < num_generations; ++generation) {
       LIKWID_MARKER_START("GA");
 // Evaluate the fitness of the population
@@ -161,7 +165,6 @@ namespace mudock {
       for (int element_index = 0; element_index < population_size; ++element_index) {
         auto& element = population[element_index];
 
-        #if TRANSFORM
         std::memcpy(altered_x.get()->data(), ligand_x, num_atoms * sizeof(fp_type));
         std::memcpy(altered_y.get()->data(), ligand_y, num_atoms * sizeof(fp_type));
         std::memcpy(altered_z.get()->data(), ligand_z, num_atoms * sizeof(fp_type));
@@ -177,21 +180,19 @@ namespace mudock {
               frag_masks,
               frag_start_indexes,
               frag_stop_indexes);
-        #endif
         
+        if constexpr (is_debug()) {
+          x = ligand_x;
+          y = ligand_y;
+          z = ligand_z;
+        } else {
+          x = altered_x.get()->data();
+          y = altered_y.get()->data();
+          z = altered_z.get()->data();
+        }
+
         // compute the energy of the system
         #if VINA
-
-          #if TRANSFORM
-            const fp_type* __restrict__ x = altered_x.get()->data();
-            const fp_type* __restrict__ y = altered_y.get()->data();
-            const fp_type* __restrict__ z = altered_z.get()->data();
-          #else
-            const fp_type* __restrict__ x = ligand_x;
-            const fp_type* __restrict__ y = ligand_y;
-            const fp_type* __restrict__ z = ligand_z;
-          #endif
-
         const auto energy = scoring(
             protein_num_atoms,
             protein_x,
@@ -213,6 +214,7 @@ namespace mudock {
             interacting_pairs_first,
             interacting_pairs_second,
             num_interacting_pairs);
+
         #else
         const auto energy = calc_energy(altered_x.get()->data(),
                                         altered_y.get()->data(),
@@ -243,8 +245,6 @@ namespace mudock {
         element.score     = energy; // dummy implementation to test the genetic
       }
       LIKWID_MARKER_STOP("GA");
-
-      #if TRANSFORM
 
       // Generate the new population
 #pragma clang loop interleave(enable) unroll(enable)
@@ -286,7 +286,6 @@ namespace mudock {
             next_individual.genes[i] += get_mutation_change_distribution(generator, dist) * angle_step;
         }
       }
-      #endif
 
       // swap the new population with the old one
       const auto temp = population;

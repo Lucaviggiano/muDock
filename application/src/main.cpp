@@ -53,7 +53,7 @@ int main(int argc, char* argv[]) {
     try {
       auto ligand = std::make_unique<mudock::static_molecule>();
       /// TODO: dynamicaly choose the format
-      mudock::parse<mudock::supported_format::PDBQT>(*ligand, description);
+      mudock::parse<mudock::supported_format::MOL2>(*ligand, description);
 
       mudock::apply_autodock_forcefield(*ligand);
       input_queue->enqueue(std::move(ligand));

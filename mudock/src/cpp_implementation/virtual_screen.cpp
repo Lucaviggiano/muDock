@@ -14,8 +14,6 @@
 
 #include <mudock/cpp_implementation/vina.hpp>
 
-#define TRANSFORM 1
-
 namespace mudock {
 
  
@@ -194,17 +192,18 @@ namespace mudock {
                          std::end(last_population),
                          [](const auto a, const auto b) { return a.score < b.score; });
 
-    #if TRANSFORM
-    apply(x.data(),
-          y.data(),
-          z.data(),
-          best_individual_it->genes,
-          num_atoms,
-          num_rotamers,
-          frag_masks.data(),
-          frag_start_indexes.data(),
-          frag_stop_indexes.data());
-    #endif
+    
+    if constexpr (!is_debug()){
+      apply(x.data(),
+            y.data(),
+            z.data(),
+            best_individual_it->genes,
+            num_atoms,
+            num_rotamers,
+            frag_masks.data(),
+            frag_start_indexes.data(),
+            frag_stop_indexes.data());
+    }
 
     ligand.properties.assign(property_type::SCORE, std::to_string(best_individual_it->score));
   }
