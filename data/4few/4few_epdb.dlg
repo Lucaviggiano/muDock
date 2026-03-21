@@ -21,7 +21,7 @@ Current Working Directory = "/home/gaccordi/repo/autodock4/autodock/build"
 
 
 Random number generator was seeded with values 2049966, 1744491015.
-Docking parameter file (DPF) used for this docking:		/home/gaccordi/repo/muDock/data/4few/4few_epdb.dpf
+Docking parameter file (DPF) used for this docking:		/mnt/c/Users/lucav/OneDrive/Desktop/Polimi/Progetti/Progetto_muDock/muDock/data/4few/4few_epdb.dpf
 DPF> ## GENERIC SECTION
 
 DPF> autodock_parameter_version 4.2       # used by autodock to validate parameter set
