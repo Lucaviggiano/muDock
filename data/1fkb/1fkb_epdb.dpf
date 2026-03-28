@@ -22,7 +22,7 @@ map /mnt/c/Users/lucav/OneDrive/Desktop/Polimi/Progetti/Progetto_muDock/muDock/d
 map /mnt/c/Users/lucav/OneDrive/Desktop/Polimi/Progetti/Progetto_muDock/muDock/data/1fkb/1fkb_pocket.maps.fld # atom-specific affinity map
 elecmap /mnt/c/Users/lucav/OneDrive/Desktop/Polimi/Progetti/Progetto_muDock/muDock/data/1fkb/1fkb_pocket.maps.fld # electrostatic potential map
 dsolvmap /mnt/c/Users/lucav/OneDrive/Desktop/Polimi/Progetti/Progetto_muDock/muDock/data/1fkb/1fkb_pocket.maps.fld              # desolvation potential map
-move /mnt/c/Users/lucav/OneDrive/Desktop/Polimi/Progetti/Progetto_muDock/muDock/data/1fkb/1fkb_pocket.maps.fld
+move /mnt/c/Users/lucav/OneDrive/Desktop/Polimi/Progetti/Progetto_muDock/muDock/data/1fkb/1fkb_ligand.pdbqt
 ## EVALUATE LIGAND ENERGY in RECEPTOR SECTION
 epdb                                 # small molecule to be evaluated
 
