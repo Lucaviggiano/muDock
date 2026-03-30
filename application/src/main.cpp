@@ -57,7 +57,7 @@ int main(int argc, char* argv[]) {
   
   // --- STRADA 1:  ARCHITETTURA PRE-CALCOLATA ---
   
-  mudock::info(">> RUNNING: PRECOMPUTED JIT scoring architecture");
+  mudock::info(">> RUNNING: PRECOMPUTED scoring architecture");
   mudock::precomputed_genetic_adt_pipeline pipe{protein};
   
   // --- STRADA STANDARD: ARCHITETTURA ORIGINALE MUDOCK ---
