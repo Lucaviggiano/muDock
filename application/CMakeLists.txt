@@ -88,6 +88,18 @@ if(MUDOCK_ENABLE_TEST)
   target_link_libraries(test_grid libmudock Boost::program_options)
 
   add_executable_mudock(
+    precomputed_test_score_adt "${CMAKE_CURRENT_SOURCE_DIR}/src/tests/precomputed_adt_score_test.cpp")
+  target_include_directories(precomputed_test_score_adt
+                             PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src/")
+  set_target_properties(
+    precomputed_test_score_adt
+    PROPERTIES CXX_STANDARD 20
+               CXX_STANDARD_REQUIRED ON
+               CXX_EXTENSIONS OFF)
+  target_link_libraries(precomputed_test_score_adt libmudock Boost::program_options)
+
+
+  add_executable_mudock(
     test_score_adt "${CMAKE_CURRENT_SOURCE_DIR}/src/tests/adt_score_test.cpp")
   target_include_directories(test_score_adt
                              PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src/")
