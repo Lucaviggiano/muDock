@@ -56,10 +56,14 @@ int main(int argc, char* argv[]) {
       in_format);
   
   // --- STRADA 1:  ARCHITETTURA PRE-CALCOLATA ---
-  
+  /*
   mudock::info(">> RUNNING: PRECOMPUTED scoring architecture");
   mudock::precomputed_genetic_adt_pipeline pipe{protein};
-  
+  */
+  // --- STRADA 2: ARCHITETTURA DISCRETIZZATA ---
+  mudock::info(">> RUNNING: DISCRETIZED scoring architecture")
+  mudock:genetic_adt_quant_pipeline pipe{protein};
+
   // --- STRADA STANDARD: ARCHITETTURA ORIGINALE MUDOCK ---
   // compute all the ligands according to the input configuration
   /*
