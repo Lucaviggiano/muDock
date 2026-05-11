@@ -57,36 +57,38 @@ int main(int argc, char* argv[]) {
   
   // prepare the output queue and the threadpool for the computation (prima altrimenti va fuori dallo scope del manager)
   auto output_queue = std::make_shared<mudock::safe_stack<mudock::static_molecule>>();
-  auto threadpool = mudock::threadpool();
-  // --- STRADA 1:  ARCHITETTURA PRE-CALCOLATA ---
-  
-  if (args.pipeline_mode == "PRECOMPUTED") {
-  mudock::info(">> RUNNING: PRECOMPUTED scoring architecture");
-  mudock::precomputed_genetic_adt_pipeline pipe{protein};
-  mudock::manager(args.device_confs, threadpool, args.knobs, input_queue, output_queue,pipe);
-  }
+  {
+    auto threadpool = mudock::threadpool();
+    // --- STRADA 1:  ARCHITETTURA PRE-CALCOLATA ---
+    
+    if (args.pipeline_mode == "PRECOMPUTED") {
+    mudock::info(">> RUNNING: PRECOMPUTED scoring architecture");
+    mudock::precomputed_genetic_adt_pipeline pipe{protein};
+    mudock::manager(args.device_confs, threadpool, args.knobs, input_queue, output_queue,pipe);
+    }
 
-  // --- STRADA 2: ARCHITETTURA DISCRETIZZATA ---
-  else if (args.pipeline_mode == "QUANT") {
-  mudock::info(">> RUNNING: DISCRETIZED scoring architecture");
-  mudock::genetic_adt_quant_pipeline pipe{protein};
-  mudock::manager(args.device_confs, threadpool, args.knobs, input_queue, output_queue,pipe);
-  }
+    // --- STRADA 2: ARCHITETTURA DISCRETIZZATA ---
+    else if (args.pipeline_mode == "QUANT") {
+    mudock::info(">> RUNNING: DISCRETIZED scoring architecture");
+    mudock::genetic_adt_quant_pipeline pipe{protein};
+    mudock::manager(args.device_confs, threadpool, args.knobs, input_queue, output_queue,pipe);
+    }
 
-  // --- STRADA STANDARD: ARCHITETTURA ORIGINALE MUDOCK ---
-  // compute all the ligands according to the input configuration
-  else {
-  mudock::info("Virtual screening the ligands ...");
-  mudock::genetic_adt_pipeline pipe{protein};
-  mudock::manager(args.device_confs, threadpool, args.knobs, input_queue, output_queue,pipe);
-  }
-  // auto output_queue = std::make_shared<mudock::safe_stack<mudock::static_molecule>>();
-  // {
-  //   auto threadpool = mudock::threadpool();
-  //   mudock::manager(args.device_confs, threadpool, args.knobs, input_queue, output_queue, pipe);
-  //   mudock::info("All workers have been created!");
-  // } // when we exit from this block the computation is complete
-  mudock::info("All workers have been created!");
+    // --- STRADA STANDARD: ARCHITETTURA ORIGINALE MUDOCK ---
+    // compute all the ligands according to the input configuration
+    else {
+    mudock::info("Virtual screening the ligands ...");
+    mudock::genetic_adt_pipeline pipe{protein};
+    mudock::manager(args.device_confs, threadpool, args.knobs, input_queue, output_queue,pipe);
+    }
+    // auto output_queue = std::make_shared<mudock::safe_stack<mudock::static_molecule>>();
+    // {
+    //   auto threadpool = mudock::threadpool();
+    //   mudock::manager(args.device_confs, threadpool, args.knobs, input_queue, output_queue, pipe);
+    //   mudock::info("All workers have been created!");
+    // } // when we exit from this block the computation is complete
+    mudock::info("All workers have been created!");
+  };
   // after the computation it will be nice to print the score of all the molecules
   mudock::info("Printing the scores ...");
   for (auto ligand = output_queue->dequeue(); ligand; ligand = output_queue->dequeue()) {
