@@ -40,7 +40,7 @@ int main(int argc, char* argv[]) {
 #pragma omp parallel for shared(input_queue)
           for (const auto& description: ligands_description) {
             auto ligand = std::make_unique<mudock::static_molecule>(
-                mudock::parser<mudock::supported_format::ADTMOL2, mudock::static_molecule>(description));
+            mudock::parser<mudock::supported_format::ADTMOL2, mudock::static_molecule>(description));
             input_queue->enqueue(std::move(ligand));
           }
         } else {
@@ -59,34 +59,46 @@ int main(int argc, char* argv[]) {
   auto output_queue = std::make_shared<mudock::safe_stack<mudock::static_molecule>>();
   {
     auto threadpool = mudock::threadpool();
-    // --- STRADA 1:  ARCHITETTURA PRE-CALCOLATA ---
-    
-    if (args.pipeline_mode == "PRECOMPUTED") {
-    mudock::info(">> RUNNING: PRECOMPUTED scoring architecture");
-    mudock::precomputed_genetic_adt_pipeline pipe{protein};
-    mudock::manager(args.device_confs, threadpool, args.knobs, input_queue, output_queue,pipe);
-    }
 
-    // --- STRADA 2: ARCHITETTURA DISCRETIZZATA ---
-    else if (args.pipeline_mode == "QUANT") {
-    mudock::info(">> RUNNING: DISCRETIZED scoring architecture");
-    mudock::genetic_adt_quant_pipeline pipe{protein};
-    mudock::manager(args.device_confs, threadpool, args.knobs, input_queue, output_queue,pipe);
+    // =========================================================================
+    // MODALITÀ "SOLO SCORE" (Si attiva passando il flag --score-only)
+    // =========================================================================
+    if (args.score_only) {
+        mudock::info(">> RUNNING: SINGLE-POINT SCORE CALCULATION (No Genetic Algorithm)");
+        
+        if (args.pipeline_mode == "PRECOMPUTED") {
+            mudock::precomputed_adt_score_pipeline pipe{protein};
+            mudock::manager(args.device_confs, threadpool, args.knobs, input_queue, output_queue, pipe);
+        } 
+        else if (args.pipeline_mode == "QUANT") {
+            mudock::dt_quant_score_pipeline pipe{protein}; // Stage puro
+            mudock::manager(args.device_confs, threadpool, args.knobs, input_queue, output_queue, pipe);
+        } 
+        else {
+            mudock::adt_score_pipeline pipe{protein}; // Stage puro
+            mudock::manager(args.device_confs, threadpool, args.knobs, input_queue, output_queue, pipe);
+        }
     }
-
-    // --- STRADA STANDARD: ARCHITETTURA ORIGINALE MUDOCK ---
-    // compute all the ligands according to the input configuration
+    // =========================================================================
+    // STRADA CLASSICA: MODALITÀ GENETICA (Di default)
+    // =========================================================================
     else {
-    mudock::info("Virtual screening the ligands ...");
-    mudock::genetic_adt_pipeline pipe{protein};
-    mudock::manager(args.device_confs, threadpool, args.knobs, input_queue, output_queue,pipe);
+        mudock::info("Virtual screening the ligands ...");
+
+        if (args.pipeline_mode == "PRECOMPUTED") {
+            mudock::precomputed_genetic_adt_pipeline pipe{protein};
+            mudock::manager(args.device_confs, threadpool, args.knobs, input_queue, output_queue, pipe);
+        }
+        else if (args.pipeline_mode == "QUANT") {
+            mudock::genetic_adt_quant_pipeline pipe{protein};
+            mudock::manager(args.device_confs, threadpool, args.knobs, input_queue, output_queue, pipe);
+        }
+        else {
+            mudock::genetic_adt_pipeline pipe{protein};
+            mudock::manager(args.device_confs, threadpool, args.knobs, input_queue, output_queue, pipe);
+        }
     }
-    // auto output_queue = std::make_shared<mudock::safe_stack<mudock::static_molecule>>();
-    // {
-    //   auto threadpool = mudock::threadpool();
-    //   mudock::manager(args.device_confs, threadpool, args.knobs, input_queue, output_queue, pipe);
-    //   mudock::info("All workers have been created!");
-    // } // when we exit from this block the computation is complete
+
     mudock::info("All workers have been created!");
   };
   // after the computation it will be nice to print the score of all the molecules

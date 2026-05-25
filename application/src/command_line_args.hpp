@@ -11,6 +11,7 @@ struct command_line_arguments {
   std::filesystem::path ligand_path     = std::filesystem::path{"ligand.mol2"};
   std::vector<std::string> device_confs = {std::string{use_cpu_conf}};
   std::string pipeline_mode = "STANDARD";
+  bool score_only = false;
   mudock::knobs knobs;
 };
 command_line_arguments parse_command_line_arguments(const int argc, char *argv[]);

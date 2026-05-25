@@ -8,3 +8,9 @@ build*/
 *.zip
 CASF-2016/
 venv/
+data/filtered_dataset/
+data/targets.txt
+*.sh
+*.csv
+*.py
+data/mega_ligands/
