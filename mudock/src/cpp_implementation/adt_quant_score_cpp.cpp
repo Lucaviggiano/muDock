@@ -96,12 +96,11 @@ namespace mudock {
             total_trilinear += 2 * epenalty;
           } else {
             const int my_bin = atom_bins_l[index];
-            const int atom_type_idx = map_offsets_l[index] / map_index_xyz;
+            const int standard_offset = map_offsets_l[index];
             const int NUM_BINS = 14;
             const fp_type *my_quant_map = quant_maps + 
-                                          (atom_type_idx * NUM_BINS * map_index_xyz) + 
+                                          (standard_offset * NUM_BINS) + 
                                           (my_bin * map_index_xyz);
-
             coord[0] = (coord[0] - minimum[0]) * inv_spacing;
             coord[1] = (coord[1] - minimum[1]) * inv_spacing;
             coord[2] = (coord[2] - minimum[2]) * inv_spacing;

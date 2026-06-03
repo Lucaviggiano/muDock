@@ -128,7 +128,7 @@ int main(int argc, char *argv[]) {
                                                          adt_ligand.vol(),
                                                          adt_ligand.solpar(),
                                                          ligand.charge(),
-                                                         reinterpret_cast<const int*>(adt_ligand.atom_map_index()),
+                                                         adt_ligand.atom_map_offsets(),
                                                          adt_ligand.non_bond_A(),
                                                          adt_ligand.non_bond_B(),
                                                          adt_ligand.non_bond_cA(),

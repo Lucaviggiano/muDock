@@ -32,7 +32,7 @@ void autodock_quant_protein::prepare_fused_maps(const autodock_protein* base_pro
     const fp_type* dsolv_grid = grid_maps + (DSOLV_IDX * map_flat_size);
     for(int atom_type_idx = 0; atom_type_idx < num_atom_types; ++atom_type_idx) {
 
-        const fp_type* current_vdw_grid = grid_maps + (atom_type_idx * map_flat_size);
+        const fp_type* current_vdw_grid = grid_maps + (atom_type_idx  * map_flat_size);
         for(int bin_idx = 0; bin_idx < num_bins; ++bin_idx) {
             
             const fp_type q = calculate_bin_center(bin_idx);
@@ -50,7 +50,9 @@ void autodock_quant_protein::prepare_fused_maps(const autodock_protein* base_pro
                         
                         auto total_val = (grid_elec * q) + (grid_desolv * abs_q) + grid_vdw;
                         
-                        std::size_t final_idx = (atom_type_idx * bin_idx * map_flat_size) + voxel_idx;    
+                        std::size_t final_idx = (static_cast<std::size_t>(atom_type_idx) * num_bins * map_flat_size) + 
+                        (static_cast<std::size_t>(bin_idx) * map_flat_size) + 
+                        voxel_idx;   
                         raw_fused_ptr[final_idx] = total_val;
                     }
                 }
