@@ -4,8 +4,10 @@
 #include <cstdlib>
 #include <filesystem>
 #include <memory>
+#include <cmath>
 #include <mudock/chem/autodock_ligand.hpp>
 #include <mudock/chem/autodock_protein.hpp>
+#include <mudock/chem/autodock_grid_types.hpp> // Necessario per num_autodock_grids()
 #include <mudock/format/ob_wrapper.hpp>
 #include <mudock/format/pdbqt.hpp>
 #include <mudock/format/reader.hpp>
@@ -23,25 +25,41 @@ inline T round3dp(const T x) {
   return ((std::floor((x) * 1000.0 + 0.5)) / 1000.0);
 }
 
+
 std::vector<mudock::fp_type> generate_test_quantized_maps(const mudock::autodock_grid& adt_grid) {
     const auto& thresh = mudock::autodock_quant_protein::thresholds;
     int num_bins = thresh.size() + 1;
-    int map_flat_size = adt_grid.get_size_xyz();
+    size_t map_flat_size = adt_grid.get_size_xyz();
+    int num_atom_types = mudock::num_autodock_grids() - 2; 
     
-    std::vector<mudock::fp_type> quant_maps(num_bins * map_flat_size, 0.0);
+   
+    std::vector<mudock::fp_type> quant_maps(num_atom_types * num_bins * map_flat_size, 0.0);
     const mudock::fp_type* original_maps = adt_grid.get_maps_pointer();
     
-    const mudock::fp_type* electro_map = original_maps + map_flat_size * static_cast<int>(mudock::autodock_grid_type::ELEC);
-    const mudock::fp_type* desolv_map  = original_maps + map_flat_size * static_cast<int>(mudock::autodock_grid_type::DESOLV);
+    const int ELEC_IDX  = static_cast<int>(mudock::autodock_grid_type::ELEC);
+    const int DSOLV_IDX = static_cast<int>(mudock::autodock_grid_type::DESOLV);
+    
+    const mudock::fp_type* electro_map = original_maps + map_flat_size * ELEC_IDX;
+    const mudock::fp_type* desolv_map  = original_maps + map_flat_size * DSOLV_IDX;
 
-    for (int b = 0; b < num_bins; ++b) {
-        mudock::fp_type charge_val;
-        if (b == 0) charge_val = thresh[0] - 0.1f;
-        else if (static_cast<size_t>(b) >= thresh.size()) charge_val = thresh.back() + 0.1f;
-        else charge_val = (thresh[b] + thresh[b-1]) / 2.0;
+    
+    for (int atom_type_idx = 0; atom_type_idx < num_atom_types; ++atom_type_idx) {
+        const mudock::fp_type* current_vdw_map = original_maps + (atom_type_idx * map_flat_size);
 
-        for (int i = 0; i < map_flat_size; ++i) {
-            quant_maps[b * map_flat_size + i] = electro_map[i] * charge_val + desolv_map[i] * std::fabs(charge_val);
+        for (int b = 0; b < num_bins; ++b) {
+            mudock::fp_type charge_val;
+            if (b == 0) charge_val = thresh[0] - 0.1f;
+            else if (static_cast<size_t>(b) >= thresh.size()) charge_val = thresh.back() + 0.1f;
+            else charge_val = (thresh[b] + thresh[b-1]) / 2;
+
+            for (size_t i = 0; i < map_flat_size; ++i) {
+               
+                size_t final_idx = (atom_type_idx * num_bins * map_flat_size) + (b * map_flat_size) + i;
+                 
+                quant_maps[final_idx] = (electro_map[i] * charge_val) + 
+                                        (desolv_map[i] * std::fabs(charge_val)) + 
+                                        current_vdw_map[i];
+            }
         }
     }
     return quant_maps;
@@ -81,13 +99,13 @@ int main(int argc, char *argv[]) {
 
   const auto num_atoms    = ligand.num_atoms();
   const auto num_rotamers = ligand.num_rotamers();
-  adt_ligand.update_offsets(adt_grid.get_map_flat_size());
+  adt_ligand.update_offsets(static_cast<int>(adt_grid.get_map_flat_size()));
 
   mudock::info("Computing quantized FSR maps for custom kernel...");
   
   std::vector<mudock::fp_type> my_quant_maps = generate_test_quantized_maps(adt_grid);
   
-  const auto& thresholds = mudock::autodock_quant_protein::thresholds();
+  const auto& thresholds = mudock::autodock_quant_protein::thresholds;
   std::vector<int> atom_bins_b = mudock::build_atom_to_bin_map(ligand, thresholds);
 
   mudock::info("Computing energy ...");
@@ -110,13 +128,12 @@ int main(int argc, char *argv[]) {
                                                          adt_ligand.vol(),
                                                          adt_ligand.solpar(),
                                                          ligand.charge(),
-                                                         adt_ligand.atom_map_offsets(),
+                                                         reinterpret_cast<const int*>(adt_ligand.atom_map_index()),
                                                          adt_ligand.non_bond_A(),
                                                          adt_ligand.non_bond_B(),
                                                          adt_ligand.non_bond_cA(),
                                                          adt_ligand.non_bond_cB(),
                                                          adt_ligand.non_bond_xB(),
-                                                         adt_grid.get_maps_pointer(), 
                                                          my_quant_maps.data(),
                                                          atom_bins_b.data(), 
                                                          adt_grid.get_min_p(),
@@ -131,7 +148,7 @@ int main(int argc, char *argv[]) {
   quant_kernel();
   const mudock::fp_type energy = scores_b[0];
   
-  // Tollerance high because we are comparing a quantized score with a non-quantized one, so we expect some differences.
+  // Tolleranza alta perchè l'errore (MAE) che abbiamo valutato prima giustifica minime differenze.
   mudock::info(std::format("Baseline Score: {}", adt_score - adt_error_score));
   mudock::info(std::format("Quantized Score: {}", energy));
 

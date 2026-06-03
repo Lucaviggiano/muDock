@@ -55,7 +55,7 @@ namespace mudock {
         auto &prot_index_x   = (*device_scratch).template get<buffer_data_type::PROT_SIZE_X>();
         auto &prot_index_xy  = (*device_scratch).template get<buffer_data_type::PROT_SIZE_XY>();
         auto &prot_index_xyz = (*device_scratch).template get<buffer_data_type::PROT_SIZE_XYZ>();
-        auto &prot_grid_maps = (*device_scratch).template get<buffer_data_type::PROT_GRID_MAPS>();
+        //auto &prot_grid_maps = (*device_scratch).template get<buffer_data_type::PROT_GRID_MAPS>();
 
         prot_min.alloc(3);
         prot_max.alloc(3);
@@ -64,7 +64,7 @@ namespace mudock {
         prot_index_xy.alloc(1);
         prot_index_xyz.alloc(1);
         // We allocate only the vdw maps as the quantized scoring does not use electrostatic and desolvation maps
-        prot_grid_maps.alloc(adt_prot.get_map_flat_size() * (num_autodock_grids() - 2));
+        //prot_grid_maps.alloc(adt_prot.get_map_flat_size() * (num_autodock_grids() - 2));
 
         std::memcpy(prot_min(), adt_prot.get_min_p(), 3 * sizeof(fp_type));
         std::memcpy(prot_max(), adt_prot.get_max_p(), 3 * sizeof(fp_type));
@@ -73,10 +73,10 @@ namespace mudock {
         prot_index_xy()[0]  = static_cast<int>(adt_prot.get_size_xy());
         prot_index_xyz()[0] = static_cast<int>(adt_prot.get_size_xyz());
         //skipping electrostatic and desolvation maps as they are not used in the quantized scoring
-        const fp_type* vdw_maps_start = adt_prot.get_maps_pointer() + (adt_prot.get_map_flat_size() * 2);
-        std::memcpy(prot_grid_maps(),
+        // const fp_type* vdw_maps_start = adt_prot.get_maps_pointer() + (adt_prot.get_map_flat_size() * 2);
+        /*std::memcpy(prot_grid_maps(),
                     vdw_maps_start,
-                    adt_prot.get_map_flat_size() * (num_autodock_grids() - 2) * sizeof(fp_type));
+                    adt_prot.get_map_flat_size() * (num_autodock_grids() - 2) * sizeof(fp_type));*/
 
         prot_min.copy_host2device();
         prot_max.copy_host2device();
@@ -89,7 +89,7 @@ namespace mudock {
             autodock_quant_protein quant_prot(&adt_prot);
             auto &quant_maps = (*device_scratch).template get<buffer_data_type::QUANT_GRID_MAPS>();
             std::size_t num_bins = quant_prot.thresholds.size() + 1;
-            std::size_t total_floats = num_bins * adt_prot.get_map_flat_size();
+            std::size_t total_floats = num_bins * adt_prot.get_map_flat_size()* static_cast<std::size_t>(num_autodock_grids() - 2);
 
             quant_maps.alloc(total_floats);
             std::memcpy(quant_maps(), quant_prot.get_raw_data(), total_floats * sizeof(fp_type));
@@ -170,10 +170,10 @@ namespace mudock {
                     adt_ligand.atom_map_index(),
                     num_atoms * sizeof(int));
         //shift
-        int* current_offsets = map_offsets() + stride_atoms;
-        for (int i = 0; i < num_atoms; ++i) {
-            current_offsets[i] -= 2; 
-        }
+        // int* current_offsets = map_offsets() + stride_atoms;
+        // for (int i = 0; i < num_atoms; ++i) {
+        //     current_offsets[i] -= 2; 
+        // }
       }
 
       vols.copy_host2device();
@@ -215,8 +215,8 @@ namespace mudock {
       const int *nonbond_xB_b     = nonbond_xB.dev_pointer();
 
       // Use host pointer as on CPP you can use it, on GPU they will load their own memory
-      const fp_type *grid_maps =
-          (*device_scratch).template get<buffer_data_type::PROT_GRID_MAPS>().host_pointer();
+      // const fp_type *grid_maps =
+      //     (*device_scratch).template get<buffer_data_type::PROT_GRID_MAPS>().host_pointer();
       const fp_type *minimum = (*device_scratch).template get<buffer_data_type::PROT_MIN>().dev_pointer();
       const fp_type *maximum = (*device_scratch).template get<buffer_data_type::PROT_MAX>().dev_pointer();
       const fp_type *center  = (*device_scratch).template get<buffer_data_type::PROT_CENTER>().dev_pointer();
@@ -249,7 +249,7 @@ namespace mudock {
                                                               nonbond_cA_b,
                                                               nonbond_cB_b,
                                                               nonbond_xB_b,
-                                                              grid_maps,
+                                                              // grid_maps,
                                                               quant_maps,
                                                               atom_bins_b,
                                                               minimum,

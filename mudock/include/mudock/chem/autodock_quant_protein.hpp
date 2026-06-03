@@ -14,8 +14,9 @@ namespace mudock {
   struct autodock_quant_protein {
   
   private:
-    // fused quantized maps: [bin_index][z][y][x]
-    md_vector<fp_type, 4> quantized_fused_maps;
+    //let's try totally fused map
+    // fused quantized maps: [atom_type][bin_index][z][y][x]
+    md_vector<fp_type, 5> quantized_fused_maps;
     // helper function to calculate the center of a bin given its index
     fp_type calculate_bin_center(int bin_index) const;
 
@@ -72,7 +73,8 @@ namespace mudock {
         auto sz = base_protein->get_size_xyz() / base_protein->get_size_xy();
         
         int num_bins = static_cast<int>(thresholds.size()) + 1;
-        quantized_fused_maps = md_vector<fp_type, 4>(num_bins, sz, sy, sx);
+        int num_atom_types = num_autodock_grids() - 2;
+        quantized_fused_maps = md_vector<fp_type, 5>(num_atom_types, num_bins, sz, sy, sx);
         prepare_fused_maps(base_protein);
         
     }

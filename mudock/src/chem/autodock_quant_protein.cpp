@@ -27,33 +27,36 @@ void autodock_quant_protein::prepare_fused_maps(const autodock_protein* base_pro
 
     const int ELEC_IDX  = static_cast<int>(autodock_grid_type::ELEC); 
     const int DSOLV_IDX = static_cast<int>(autodock_grid_type::DESOLV);
-
+    const int num_atom_types = num_autodock_grids() - 2;
     const fp_type* elec_grid  = grid_maps + (ELEC_IDX * map_flat_size);
     const fp_type* dsolv_grid = grid_maps + (DSOLV_IDX * map_flat_size);
+    for(int atom_type_idx = 0; atom_type_idx < num_atom_types; ++atom_type_idx) {
 
-    for(int bin_idx = 0; bin_idx < num_bins; ++bin_idx) {
-        
-        const fp_type q = calculate_bin_center(bin_idx);
-        const fp_type abs_q = std::abs(q);
-        
-        for (std::size_t index_z = 0; index_z < sz; ++index_z) {
-            for (std::size_t index_y = 0; index_y < sy; ++index_y) {
-                for (std::size_t index_x = 0; index_x < sx; ++index_x) {
-                    
-                    std::size_t voxel_idx = (index_z * sy * sx) + (index_y * sx) + index_x;
+        const fp_type* current_vdw_grid = grid_maps + (atom_type_idx * map_flat_size);
+        for(int bin_idx = 0; bin_idx < num_bins; ++bin_idx) {
+            
+            const fp_type q = calculate_bin_center(bin_idx);
+            const fp_type abs_q = std::abs(q);
+            
+            for (std::size_t index_z = 0; index_z < sz; ++index_z) {
+                for (std::size_t index_y = 0; index_y < sy; ++index_y) {
+                    for (std::size_t index_x = 0; index_x < sx; ++index_x) {
+                        
+                        std::size_t voxel_idx = (index_z * sy * sx) + (index_y * sx) + index_x;
 
-                    const auto grid_elec   = elec_grid[voxel_idx];
-                    const auto grid_desolv = dsolv_grid[voxel_idx];
-                    
-                    auto total_val = (grid_elec * q) + (grid_desolv * abs_q);
-                    
-                    std::size_t final_idx = (bin_idx * map_flat_size) + voxel_idx;    
-                    raw_fused_ptr[final_idx] = total_val;
+                        const auto grid_elec   = elec_grid[voxel_idx];
+                        const auto grid_desolv = dsolv_grid[voxel_idx];
+                        const auto grid_vdw    = current_vdw_grid[voxel_idx];
+                        
+                        auto total_val = (grid_elec * q) + (grid_desolv * abs_q) + grid_vdw;
+                        
+                        std::size_t final_idx = (atom_type_idx * bin_idx * map_flat_size) + voxel_idx;    
+                        raw_fused_ptr[final_idx] = total_val;
+                    }
                 }
             }
         }
     }
-
 }
 
 //implementation of helper function to calculate the center of a bin given its index, if the index is out of bounds it returns a value outside the thresholds range +- 0.1f

@@ -32,7 +32,7 @@ namespace mudock {
                      const fp_type *__restrict__ nonbond_cA_b_,
                      const fp_type *__restrict__ nonbond_cB_b_,
                      const int *__restrict__ nonbond_xB_b_,
-                     const fp_type *__restrict__ grid_maps_,
+                    //  const fp_type *__restrict__ grid_maps_,
                      const fp_type *__restrict__ quant_maps_,
                      const int *__restrict__ atom_bins_b_,
                      const fp_type *__restrict__ minimum_,
@@ -61,7 +61,7 @@ namespace mudock {
           nonbond_cA_b(nonbond_cA_b_),
           nonbond_cB_b(nonbond_cB_b_),
           nonbond_xB_b(nonbond_xB_b_),
-          grid_maps(grid_maps_),
+          // grid_maps(grid_maps_),
           quant_maps(quant_maps_),
           atom_bins_b(atom_bins_b_),
           minimum(minimum_),
@@ -101,7 +101,7 @@ namespace mudock {
     const fp_type *__restrict__ nonbond_cA_b;
     const fp_type *__restrict__ nonbond_cB_b;
     const int *__restrict__ nonbond_xB_b;
-    const fp_type *__restrict__ grid_maps;
+    //  const fp_type *__restrict__ grid_maps;
     const fp_type *__restrict__ quant_maps;
     const int *__restrict__ atom_bins_b;
     const fp_type *__restrict__ minimum;
